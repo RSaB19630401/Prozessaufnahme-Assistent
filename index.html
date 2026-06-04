@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prozessaufnahme-Assistent</title>
+
+<!-- React + Babel (no build tools) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- SheetJS: Excel & CSV einlesen -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+
+<!-- Mermaid (ESM) -> auf window legen -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose', flowchart: { useMaxWidth: true } });
+  window.__mermaid = mermaid;
+  window.__mermaidReady = true;
+</script>
+
+<style>
+  :root{
+    --bg:#f4f5f3;
+    --surface:#ffffff;
+    --ink:#1d2321;
+    --ink-soft:#525a57;
+    --line:#e2e5e1;
+    --line-strong:#cfd4cf;
+    --accent:#0f6e63;        /* petrol */
+    --accent-soft:#e4f0ee;
+    --accent-ink:#0a4a43;
+    --amber:#b4690e;
+    --danger:#a3392f;
+    --shadow:0 1px 2px rgba(20,30,28,.04), 0 8px 24px -12px rgba(20,30,28,.18);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  #root{min-height:100vh;}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px;}
+  h1,h2,h3{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;letter-spacing:-.01em;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* Header */
+  .app-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+  .brand h1{font-size:20px;margin:0;}
+  .brand .sub{font-size:12.5px;color:var(--ink-soft);margin-top:1px;}
+  .conn{font-size:12px;display:flex;align-items:center;gap:7px;color:var(--ink-soft);}
+  .conn .led{width:8px;height:8px;border-radius:50%;}
+  .led.ok{background:#2f9e57;} .led.bad{background:var(--danger);}
+
+  /* Cards / panels */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
+  .pad{padding:24px;}
+
+  /* Buttons */
+  .btn{font-family:inherit;font-size:14px;font-weight:500;border-radius:9px;border:1px solid var(--line-strong);
+       background:var(--surface);color:var(--ink);padding:9px 15px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;}
+  .btn:hover{border-color:var(--accent);color:var(--accent-ink);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-ink);color:#fff;}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--ink-soft);}
+  .btn.ghost:hover{background:var(--accent-soft);color:var(--accent-ink);}
+  .btn.sm{padding:6px 11px;font-size:13px;}
+  .btn.danger:hover{border-color:var(--danger);color:var(--danger);}
+
+  /* Start screen */
+  .lead{font-size:15px;color:var(--ink-soft);max-width:62ch;}
+  .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px;}
+  @media(max-width:720px){.modes{grid-template-columns:1fr;}.app-head{align-items:flex-start;}}
+  .mode{text-align:left;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+        padding:20px;cursor:pointer;transition:.18s;display:flex;flex-direction:column;gap:8px;min-height:150px;}
+  .mode:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow);}
+  .mode .k{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
+  .mode .t{font-family:'IBM Plex Serif',serif;font-size:18px;font-weight:600;}
+  .mode .d{font-size:13.5px;color:var(--ink-soft);}
+  .resume{margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+          background:var(--accent-soft);border:1px solid #cfe5e1;border-radius:11px;padding:12px 16px;}
+  .resume .txt{font-size:13.5px;color:var(--accent-ink);}
+
+  /* Interview layout */
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+  .pname{font-family:'IBM Plex Serif',serif;font-size:17px;font-weight:600;margin:0;}
+  .pmode{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#fff;
+         background:var(--accent);padding:2px 8px;border-radius:6px;}
+  .pmode.ist{background:var(--amber);}
+
+  /* Protocol */
+  .log{display:flex;flex-direction:column;gap:0;}
+  .turn{padding:14px 0;border-bottom:1px dashed var(--line);}
+  .turn:last-child{border-bottom:none;}
+  .q{font-size:14.5px;}
+  .q .lbl,.a .lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:3px;}
+  .mod{font-size:13.5px;color:var(--ink-soft);font-style:italic;margin-bottom:6px;}
+  .a{margin-top:10px;}
+  .a .val{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-size:14px;white-space:pre-wrap;}
+
+  /* Current question */
+  .ask{border-top:2px solid var(--accent-soft);margin-top:6px;padding-top:18px;}
+  .ask .modtxt{font-size:13.5px;color:var(--ink-soft);margin-bottom:8px;}
+  .ask .question{font-family:'IBM Plex Serif',serif;font-size:19px;font-weight:600;line-height:1.4;margin-bottom:14px;}
+  textarea.answer{width:100%;min-height:84px;resize:vertical;font-family:inherit;font-size:14.5px;color:var(--ink);
+                  border:1px solid var(--line-strong);border-radius:10px;padding:12px 14px;background:var(--surface);}
+  textarea.answer:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .ask-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:12px;flex-wrap:wrap;}
+  .hint{font-size:12px;color:var(--ink-soft);}
+
+  /* Sidebar */
+  .side h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-family:'IBM Plex Sans',sans-serif;font-weight:600;margin:0 0 10px;}
+  .prog-bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden;}
+  .prog-bar i{display:block;height:100%;background:var(--accent);transition:width .4s;}
+  .prog-pct{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .chip{font-size:11.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line);color:var(--ink-soft);}
+  .chip.done{background:var(--accent-soft);border-color:#cfe5e1;color:var(--accent-ink);}
+  .openq{font-size:13px;color:var(--ink-soft);margin:6px 0 0;padding-left:18px;}
+  .openq li{margin:4px 0;}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(20,28,26,.45);display:flex;align-items:flex-start;justify-content:center;
+           padding:40px 16px;overflow:auto;z-index:50;}
+  .modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);max-width:860px;width:100%;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);}
+  .modal-head h2{font-size:18px;margin:0;}
+  .modal-body{padding:22px;}
+  pre.out{background:#1d2321;color:#e9ece9;border-radius:10px;padding:16px;overflow:auto;font-family:'IBM Plex Mono',monospace;
+          font-size:12.5px;line-height:1.6;max-height:60vh;white-space:pre-wrap;word-break:break-word;}
+  .mermaid-box{overflow:auto;text-align:center;border:1px solid var(--line);border-radius:10px;padding:16px;background:#fafbfa;}
+  .modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}
+
+  /* misc */
+  .err{background:#fbeceA;border:1px solid #f0cfca;color:var(--danger);border-radius:10px;padding:12px 15px;font-size:13.5px;margin-top:14px;}
+  .banner{background:#fff5e6;border:1px solid #f0dcb4;color:var(--amber);border-radius:11px;padding:12px 16px;font-size:13.5px;margin-bottom:20px;}
+  .spinner{width:16px;height:16px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .imp-area{width:100%;min-height:160px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;border:1px solid var(--line-strong);
+            border-radius:10px;padding:12px;resize:vertical;}
+  label.fld{display:block;font-size:13px;font-weight:500;margin:0 0 6px;color:var(--ink-soft);}
+  input.txt{width:100%;font-family:inherit;font-size:14.5px;border:1px solid var(--line-strong);border-radius:10px;padding:10px 13px;}
+  input.txt:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ========================================================================
+   KONFIGURATION
+   ------------------------------------------------------------------------
+   Trage hier die URL deines Cloudflare Workers ein (siehe worker.js / DEPLOY).
+   Beispiel: "https://prozess-api.rsab1963.workers.dev"
+   ======================================================================== */
+const WORKER_URL = "DEINE_WORKER_URL_HIER";
+const STORAGE_KEY = "prozessaufnahme_v1";
+
+const PLACEHOLDER = "DEINE_WORKER_URL_HIER";
+const WORKER_SET = WORKER_URL && WORKER_URL !== PLACEHOLDER;
+
+/* ---- leerer Prozessstand ------------------------------------------------ */
+function emptyState(prozessname, modus){
+  return {
+    meta:{ prozessname: prozessname || "Unbenannter Prozess", modus: modus || "gruene_wiese",
+           version: 1, erstellt_am: new Date().toISOString(), zuletzt_geaendert: new Date().toISOString() },
+    kontext:{ ziel:"", ausloeser:"", input:"", output:"", scope:"", abgrenzung:"" },
+    rollen:[], aktivitaeten:[], entscheidungen:[], systeme:[], schnittstellen:[],
+    kennzahlen:[], ausnahmen:[], schmerzpunkte:[], automatisierungspotenziale:[],
+    offene_fragen:[], protokoll:[]
+  };
+}
+
+/* ========================================================================
+   SYSTEM-PROMPTS
+   ======================================================================== */
+const SYS_INTERVIEW = [
+"Du bist ein erfahrener Prozessmanager und Business Analyst. Du moderierst eine strukturierte Prozessaufnahme im Interview.",
+"Ton: professionell, moderierend, unterstützend. Sprache: Deutsch. Sieze den Nutzer nicht aufdringlich, bleibe sachlich-freundlich.",
+"",
+"GRUNDREGELN:",
+"1. Stelle IMMER genau EINE Frage pro Schritt. Niemals mehrere Fragen gleichzeitig oder Frageketten.",
+"2. Wähle stets die NÄCHSTE WICHTIGSTE Lücke im Prozessbild und frage gezielt danach.",
+"3. Spiegele in 1-2 Sätzen kurz die letzte Antwort (Bestätigung/Einordnung), dann die nächste Frage.",
+"4. Formuliere klar und verständlich, ohne unnötigen Fachjargon.",
+"",
+"MODI:",
+"- modus = 'gruene_wiese': Soll-/Zielprozess. Frage nach dem idealen, gewünschten Ablauf.",
+"- modus = 'ist': Ist-Prozess. Frage nach dem TATSÄCHLICHEN Ablauf inkl. Workarounds, Medienbrüchen und Abweichungen.",
+"",
+"ERHEBUNGSRASTER (was ein vollständiger Prozess braucht – arbeite dich entlang der größten Lücken vor):",
+"Prozessname & Ziel · Auslöser/Trigger · Input · Aktivitäten in Reihenfolge · Rollen/Verantwortliche · ",
+"Entscheidungspunkte/Gateways mit Bedingungen · beteiligte Systeme/Tools · Schnittstellen · Output/Ergebnis · ",
+"Kennzahlen/SLAs · Ausnahmen/Sonderfälle · Schmerzpunkte.",
+"",
+"NEBENAUFGABEN bei JEDER Antwort:",
+"- Erkenne Automatisierungspotenziale (Medienbrüche, wiederkehrende manuelle Schritte, regelbasierte Entscheidungen) und pflege sie in 'automatisierungspotenziale'.",
+"- Sammle Unklarheiten in 'offene_fragen'.",
+"- Schreibe Frage und Antwort als Eintrag in 'protokoll'.",
+"",
+"AUSGABEFORMAT (zwingend): Antworte AUSSCHLIESSLICH mit EINEM gültigen JSON-Objekt, ohne Markdown-Codefences, ohne Text davor oder danach. Struktur:",
+'{',
+'  "stand": { ... der vollständige, aktualisierte Prozessstand mit allen Feldern ... },',
+'  "moderation": "1-2 Sätze Spiegelung/Einordnung der letzten Antwort",',
+'  "naechste_frage": "genau EINE Frage",',
+'  "fortschritt": { "prozent": 0-100, "erfasste_bereiche": ["..."], "offene_bereiche": ["..."] },',
+'  "fertig": false',
+'}',
+"Setze 'fertig' nur dann auf true, wenn alle Rasterbereiche tragfähig erfasst sind; dann darf 'naechste_frage' leer sein.",
+"Gib im Feld 'stand' immer das KOMPLETTE Objekt zurück (nicht nur Änderungen), damit der Stand konsistent bleibt."
+].join("\n");
+
+const SYS_MERMAID = [
+"Du erstellst aus einem Prozessstand (JSON) ein gültiges Mermaid-Flussdiagramm.",
+"Gib AUSSCHLIESSLICH gültigen Mermaid-Code aus – KEINE Codefences, KEIN Erklärtext.",
+"Verwende: flowchart TD. Start/Ende als ([Text]); Aktivitäten als [Text]; Entscheidungen als {Text?} mit beschrifteten Kanten -->|Bedingung|.",
+"Nutze kurze, eindeutige Knoten-IDs (A1, A2, E1 ...). Halte Beschriftungen kurz. Vermeide Sonderzeichen in IDs.",
+"Wenn Rollen bekannt sind, kannst du sie der Aktivität voranstellen, z.B. \"A2[Sachbearbeiter: Antrag prüfen]\".",
+"Bilde die tatsächliche Reihenfolge und die Entscheidungsverzweigungen ab."
+].join("\n");
+
+const SYS_EXPORT = [
+"Du erstellst aus einem Prozessstand (JSON) eine vollständige, gut strukturierte Markdown-Dokumentation auf Deutsch.",
+"Gib AUSSCHLIESSLICH Markdown aus, ohne umschließende Codefences um das ganze Dokument.",
+"Gliederung in genau dieser Reihenfolge:",
+"1. '# Prozessdokumentation: <Name>' mit Metazeile (Modus, Stand/Datum).",
+"2. '## Prozessbeschreibung' – Fließtext: Ziel, Auslöser, Input, Ablauf in Worten, Rollen, Output.",
+"3. '## Prozessdiagramm' – ein Mermaid-Flussdiagramm in einem Codeblock (drei Backticks gefolgt von 'mermaid').",
+"4. '## Gesprächsprotokoll' – nummerierte Liste aller Frage/Antwort-Paare aus 'protokoll'.",
+"5. '## Offene Fragen' – Liste; falls keine, kurz vermerken.",
+"6. '## Automatisierungsvorschläge' – Liste mit jeweils kurzer Begründung/Nutzen.",
+"7. '## Prozessstand (JSON)' – der komplette JSON-Stand in einem Codeblock (drei Backticks gefolgt von 'json').",
+"Sei präzise und erfinde keine Inhalte, die nicht aus dem Stand hervorgehen."
+].join("\n");
+
+/* ========================================================================
+   API-HELFER
+   ======================================================================== */
+async function callClaude(system, userContent, maxTokens){
+  if(!WORKER_SET) throw new Error("WORKER_URL ist nicht gesetzt. Bitte im Code (Konstante WORKER_URL) eintragen.");
+  const res = await fetch(WORKER_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      system,
+      max_tokens: maxTokens || 2500,
+      messages:[{ role:"user", content: userContent }]
+    })
+  });
+  if(!res.ok){
+    let detail = "";
+    try{ detail = (await res.text()).slice(0,300); }catch(e){}
+    throw new Error("Worker-Antwort " + res.status + (detail ? " – " + detail : ""));
+  }
+  const data = await res.json();
+  if(data.error){ throw new Error(typeof data.error==="string"?data.error:JSON.stringify(data.error)); }
+  const text = (data.content || [])
+    .filter(b => b.type === "text")
+    .map(b => b.text)
+    .join("\n");
+  if(!text) throw new Error("Leere Antwort von der KI erhalten.");
+  return text;
+}
+
+function parseLoose(text){
+  let t = text.trim();
+  t = t.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+  const first = t.indexOf("{"), last = t.lastIndexOf("}");
+  if(first !== -1 && last !== -1) t = t.slice(first, last+1);
+  return JSON.parse(t);
+}
+
+function download(filename, content, type){
+  const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* ---- Excel/CSV einlesen (SheetJS) mit Spaltenerkennung ---- */
+const HEAD_KEYS = {
+  name:["aktivität","aktivitaet","aktivitäten","aktivitaeten","schritt","prozessschritt","arbeitsschritt","aufgabe","tätigkeit","taetigkeit","activity","task","step","name","bezeichnung"],
+  rolle:["rolle","verantwortlich","verantwortung","zuständig","zustaendig","bearbeiter","owner","role"],
+  beschreibung:["beschreibung","detail","details","description","erläuterung","erlaeuterung","kommentar","anmerkung"],
+  system:["system","systeme","tool","tools","anwendung","software","it-system"],
+  dauer:["dauer","zeit","duration","aufwand"]
+};
+function findCol(headerRow, keys){
+  for(let i=0;i<headerRow.length;i++){
+    const h = String(headerRow[i]||"").trim().toLowerCase();
+    if(!h) continue;
+    if(keys.some(k => h===k || h.includes(k))) return i;
+  }
+  return -1;
+}
+function parseSpreadsheet(file){
+  return new Promise((resolve, reject)=>{
+    if(!window.XLSX){ reject(new Error("Tabellen-Bibliothek (SheetJS) ist nicht geladen.")); return; }
+    const r = new FileReader();
+    r.onerror = ()=> reject(new Error("Datei konnte nicht gelesen werden."));
+    r.onload = ()=>{
+      try{
+        const wb = XLSX.read(new Uint8Array(r.result), { type:"array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        if(!ws){ reject(new Error("Die Datei enthält kein lesbares Tabellenblatt.")); return; }
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:"", blankrows:false });
+        if(!rows.length){ reject(new Error("Die Datei enthält keine Daten.")); return; }
+
+        const allKeys = [].concat(HEAD_KEYS.name, HEAD_KEYS.rolle, HEAD_KEYS.beschreibung, HEAD_KEYS.system, HEAD_KEYS.dauer);
+        const firstRow = rows[0].map(c => String(c).trim().toLowerCase());
+        const looksHeader = firstRow.some(h => h && allKeys.some(k => h===k || h.includes(k)));
+
+        let cols, dataRows;
+        if(looksHeader){
+          cols = {
+            name: findCol(rows[0], HEAD_KEYS.name),
+            rolle: findCol(rows[0], HEAD_KEYS.rolle),
+            beschreibung: findCol(rows[0], HEAD_KEYS.beschreibung),
+            system: findCol(rows[0], HEAD_KEYS.system),
+            dauer: findCol(rows[0], HEAD_KEYS.dauer)
+          };
+          if(cols.name === -1) cols.name = 0;
+          dataRows = rows.slice(1);
+        }else{
+          cols = { name:0, rolle:-1, beschreibung:-1, system:-1, dauer:-1 };
+          dataRows = rows;
+        }
+
+        const activities = dataRows.map(row=>{
+          const get = i => (i>=0 && row[i]!=null) ? String(row[i]).trim() : "";
+          const sys = get(cols.system);
+          return {
+            name: get(cols.name),
+            rolle: get(cols.rolle),
+            beschreibung: get(cols.beschreibung),
+            systeme: sys ? sys.split(/[;,/]/).map(s=>s.trim()).filter(Boolean) : [],
+            dauer: get(cols.dauer)
+          };
+        }).filter(a => a.name);
+
+        if(!activities.length){ reject(new Error("Keine Aktivitäten gefunden – ist eine Spalte mit Schritten/Aufgaben vorhanden?")); return; }
+
+        const detected = [["Rolle",cols.rolle],["Beschreibung",cols.beschreibung],["System",cols.system],["Dauer",cols.dauer]]
+          .filter(([,v]) => v>=0).map(([k]) => k);
+        resolve({ activities, detected, headerUsed: looksHeader });
+      }catch(e){ reject(new Error("Datei konnte nicht verarbeitet werden: " + (e.message||e))); }
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+/* ========================================================================
+   APP
+   ======================================================================== */
+function App(){
+  const [phase, setPhase] = useState("start");        // start | interview
+  const [pstate, setPstate] = useState(null);          // Prozessstand
+  const [history, setHistory] = useState([]);          // {moderation, frage, antwort}
+  const [current, setCurrent] = useState(null);        // {moderation, naechste_frage, fortschritt, fertig}
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [modal, setModal] = useState(null);            // {type, ...}
+  const [saved, setSaved] = useState(null);
+  const askRef = useRef(null);
+
+  /* gespeicherten Stand erkennen */
+  useEffect(()=>{
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) setSaved(JSON.parse(raw));
+    }catch(e){}
+  },[]);
+
+  /* Autospeichern */
+  useEffect(()=>{
+    if(phase==="interview" && pstate){
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ pstate, history, current, ts: Date.now() }));
+      }catch(e){}
+    }
+  },[phase, pstate, history, current]);
+
+  const turn = useCallback(async (state, userContent)=>{
+    setLoading(true); setError("");
+    try{
+      const raw = await callClaude(SYS_INTERVIEW, userContent, 3000);
+      const obj = parseLoose(raw);
+      const newState = obj.stand || state;
+      newState.meta = newState.meta || state.meta;
+      newState.meta.zuletzt_geaendert = new Date().toISOString();
+      setPstate(newState);
+      setCurrent({
+        moderation: obj.moderation || "",
+        naechste_frage: obj.naechste_frage || "",
+        fortschritt: obj.fortschritt || { prozent:0, erfasste_bereiche:[], offene_bereiche:[] },
+        fertig: !!obj.fertig
+      });
+      setAnswer("");
+      setTimeout(()=>askRef.current && askRef.current.focus(), 60);
+    }catch(e){
+      setError(e.message || String(e));
+    }finally{
+      setLoading(false);
+    }
+  },[]);
+
+  /* ---- Startaktionen ---- */
+  function startGruenWiese(name){
+    const s = emptyState(name, "gruene_wiese");
+    setPstate(s); setHistory([]); setCurrent(null); setPhase("interview");
+    turn(s, "Modus: gruene_wiese. Neuer Soll-/Zielprozess mit Namen \""+name+"\". Aktueller Stand (JSON):\n"
+            + JSON.stringify(s) + "\n\nBeginne die Aufnahme: kurze Moderation und die erste wichtigste Einzelfrage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+  function startAufgabenliste(name, activities){
+    const s = emptyState(name, "ist");
+    s.aktivitaeten = activities.map((a,i)=>({
+      id:"A"+(i+1), name:a.name||"", beschreibung:a.beschreibung||"", rolle:a.rolle||"",
+      typ:"aktivitaet", systeme:a.systeme||[], dauer:a.dauer||"", vorgaenger:[]
+    }));
+    if(s.aktivitaeten.some(a=>a.rolle)) s.rollen = [...new Set(s.aktivitaeten.map(a=>a.rolle).filter(Boolean))].map(rr=>({rolle:rr, verantwortung:""}));
+    setPstate(s); setHistory([]); setCurrent(null); setPhase("interview");
+    turn(s, "Modus: ist. Der Nutzer hat eine bestehende Aufgaben-/Aktivitätenliste bereitgestellt (bereits im Stand unter 'aktivitaeten', ggf. mit Rolle/System/Beschreibung). "
+            + "Aktueller Stand (JSON):\n" + JSON.stringify(s)
+            + "\n\nSichte die Liste, kläre Reihenfolge und Lücken, und stelle die erste wichtigste Einzelfrage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+  function startImport(state){
+    setPstate(state); setHistory((state.protokoll||[]).map(p=>({moderation:"",frage:p.frage,antwort:p.antwort})));
+    setCurrent(null); setPhase("interview");
+    turn(state, "Setze die Aufnahme anhand des importierten Stands fort. Aktueller Stand (JSON):\n"
+            + JSON.stringify(state) + "\n\nErmittle die nächste wichtigste Lücke und stelle genau eine Frage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+  function resume(){
+    if(!saved) return;
+    setPstate(saved.pstate); setHistory(saved.history||[]); setCurrent(saved.current||null); setPhase("interview");
+    setTimeout(()=>askRef.current && askRef.current.focus(), 60);
+  }
+
+  /* ---- Antwort senden ---- */
+  function submitAnswer(){
+    if(!answer.trim() || loading || !current) return;
+    const entry = { moderation: current.moderation, frage: current.naechste_frage, antwort: answer.trim() };
+    const newHist = [...history, entry];
+    setHistory(newHist);
+    turn(pstate,
+      "Modus: " + (pstate.meta.modus) + ". Aktueller Prozessstand (JSON):\n" + JSON.stringify(pstate)
+      + "\n\nDer Nutzer hat auf die Frage \"" + current.naechste_frage + "\" geantwortet:\n\"" + answer.trim() + "\""
+      + "\n\nAktualisiere den vollständigen Stand (inkl. Protokolleintrag, Automatisierungspotenziale, offene Fragen) "
+      + "und stelle die nächste wichtigste Einzelfrage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+
+  /* ---- Befehle / Buttons ---- */
+  function exportJSON(){
+    if(!pstate) return;
+    download((pstate.meta.prozessname||"prozess").replace(/[^\w\-]+/g,"_") + "_stand.json",
+             JSON.stringify(pstate, null, 2), "application/json");
+  }
+  async function showDiagram(){
+    setModal({ type:"diagram", loading:true });
+    try{
+      const code = (await callClaude(SYS_MERMAID, "Prozessstand (JSON):\n"+JSON.stringify(pstate)+"\n\nErzeuge das Mermaid-Diagramm.", 2000))
+                    .replace(/^```(?:mermaid)?/i,"").replace(/```$/,"").trim();
+      setModal({ type:"diagram", loading:false, code });
+    }catch(e){ setModal({ type:"diagram", loading:false, error: e.message||String(e) }); }
+  }
+  async function fullExport(){
+    setModal({ type:"export", loading:true });
+    try{
+      const md = await callClaude(SYS_EXPORT, "Prozessstand (JSON):\n"+JSON.stringify(pstate)+"\n\nErstelle die vollständige Markdown-Dokumentation.", 6000);
+      setModal({ type:"export", loading:false, md });
+    }catch(e){ setModal({ type:"export", loading:false, error: e.message||String(e) }); }
+  }
+  function openImport(){ setModal({ type:"import" }); }
+  function restart(){
+    if(!confirm("Aktuellen Prozess verwerfen und neu beginnen? Der gespeicherte Stand wird gelöscht.")) return;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    setPhase("start"); setPstate(null); setHistory([]); setCurrent(null); setSaved(null);
+  }
+
+  return (
+    <div className="wrap">
+      <header className="app-head">
+        <div className="brand">
+          <span className="dot"></span>
+          <div>
+            <h1>Prozessaufnahme-Assistent</h1>
+            <div className="sub">Geführtes Interview zur Aufnahme und Modellierung von Geschäftsprozessen</div>
+          </div>
+        </div>
+        <div className="conn">
+          <span className={"led " + (WORKER_SET ? "ok":"bad")}></span>
+          {WORKER_SET ? "KI-Verbindung konfiguriert" : "WORKER_URL fehlt"}
+        </div>
+      </header>
+
+      {!WORKER_SET &&
+        <div className="banner">
+          Es ist noch keine <b>WORKER_URL</b> eingetragen. Trage im Quelltext die URL deines Cloudflare Workers ein,
+          damit das Interview die Claude-API erreichen kann. Bis dahin lassen sich nur die Startmodi und der JSON-Export ohne KI nutzen.
+        </div>}
+
+      {phase === "start"
+        ? <StartScreen onGruen={startGruenWiese} onListe={startAufgabenliste} onImport={()=>openImport()}
+                       saved={saved} onResume={resume} />
+        : <Interview pstate={pstate} history={history} current={current} loading={loading} error={error}
+                     answer={answer} setAnswer={setAnswer} onSubmit={submitAnswer} askRef={askRef}
+                     onDiagram={showDiagram} onExport={fullExport} onJSON={exportJSON}
+                     onImport={openImport} onRestart={restart} />}
+
+      {modal && <Modal modal={modal} close={()=>setModal(null)} onImported={startImport} pstate={pstate} />}
+    </div>
+  );
+}
+
+/* ---- Startbildschirm ---- */
+function StartScreen({ onGruen, onListe, onImport, saved, onResume }){
+  const [view, setView] = useState(null); // null | 'gruen' | 'liste'
+  const [name, setName] = useState("");
+  const [liste, setListe] = useState("");
+  const [fileActs, setFileActs] = useState(null);   // geparste Aktivitäten aus Datei
+  const [fileInfo, setFileInfo] = useState(null);    // {name, detected, headerUsed}
+  const [fileErr, setFileErr] = useState("");
+  const [parsing, setParsing] = useState(false);
+
+  function handleFile(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    setFileErr(""); setParsing(true); setFileActs(null); setFileInfo(null);
+    parseSpreadsheet(file).then(res=>{
+      setFileActs(res.activities);
+      setFileInfo({ name:file.name, detected:res.detected, headerUsed:res.headerUsed, count:res.activities.length });
+      if(!name.trim()) setName(file.name.replace(/\.[^.]+$/,""));
+    }).catch(err=>{
+      setFileErr(err.message||String(err));
+    }).finally(()=> setParsing(false));
+  }
+
+  function startListe(){
+    if(fileActs && fileActs.length){
+      onListe(name.trim(), fileActs);
+    }else{
+      const acts = liste.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>({ name:l }));
+      onListe(name.trim(), acts);
+    }
+  }
+  const canStart = name.trim() && ((fileActs && fileActs.length) || liste.trim());
+
+  return (
+    <div className="card pad">
+      <h2 style={{marginTop:0}}>Womit möchten Sie beginnen?</h2>
+      <p className="lead">Der Assistent führt Sie mit jeweils einer Frage durch die Aufnahme. Wählen Sie den passenden
+      Einstieg – einen frischen Zielprozess, eine vorhandene Aufgabenliste oder einen zuvor exportierten Stand.</p>
+
+      {saved &&
+        <div className="resume">
+          <span className="txt">Gespeicherter Stand gefunden: <b>{saved.pstate?.meta?.prozessname}</b></span>
+          <button className="btn sm primary" onClick={onResume}>Fortsetzen</button>
+        </div>}
+
+      {!view &&
+        <div className="modes">
+          <button className="mode" onClick={()=>setView("gruen")}>
+            <span className="k">Grüne Wiese</span>
+            <span className="t">Soll-/Zielprozess</span>
+            <span className="d">Einen Prozess von Grund auf entwerfen – wie er idealerweise ablaufen soll.</span>
+          </button>
+          <button className="mode" onClick={()=>setView("liste")}>
+            <span className="k">Bestehende Aktivitäten</span>
+            <span className="t">Ist-Prozess</span>
+            <span className="d">Mit vorhandenen Aktivitäten starten – als Excel-/CSV-Datei oder Liste – und den tatsächlichen Ablauf erfassen.</span>
+          </button>
+          <button className="mode" onClick={onImport}>
+            <span className="k">Fortsetzen</span>
+            <span className="t">Stand importieren</span>
+            <span className="d">Einen zuvor gespeicherten JSON-Stand oder eine strukturierte Beschreibung laden.</span>
+          </button>
+        </div>}
+
+      {view === "gruen" &&
+        <div style={{marginTop:24,maxWidth:520}}>
+          <label className="fld">Wie heißt der Prozess?</label>
+          <input className="txt" autoFocus value={name} onChange={e=>setName(e.target.value)}
+                 placeholder="z. B. Rechnungsfreigabe, Onboarding neuer Mitarbeitender …"
+                 onKeyDown={e=>{ if(e.key==="Enter" && name.trim()) onGruen(name.trim()); }} />
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <button className="btn primary" disabled={!name.trim()} onClick={()=>onGruen(name.trim())}>Aufnahme starten</button>
+            <button className="btn ghost" onClick={()=>setView(null)}>Zurück</button>
+          </div>
+        </div>}
+
+      {view === "liste" &&
+        <div style={{marginTop:24,maxWidth:680}}>
+          <label className="fld">Prozessname</label>
+          <input className="txt" value={name} onChange={e=>setName(e.target.value)}
+                 placeholder="z. B. Bestellabwicklung" style={{marginBottom:18}} />
+
+          <label className="fld">Aus Datei übernehmen (Excel .xlsx/.xls oder CSV)</label>
+          <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                 onChange={handleFile} />
+          {parsing && <div className="hint" style={{marginTop:8}}><span className="spinner"></span> Datei wird gelesen …</div>}
+          {fileErr && <div className="err">{fileErr}</div>}
+          {fileActs &&
+            <div className="resume" style={{display:"block",marginTop:12}}>
+              <div className="txt"><b>{fileInfo.count}</b> Aktivitäten aus „{fileInfo.name}" erkannt
+                {fileInfo.headerUsed === false && " (ohne Kopfzeile – erste Spalte als Schritt verwendet)"}.
+                {fileInfo.detected.length>0 && <> Zusätzliche Spalten: {fileInfo.detected.join(", ")}.</>}
+              </div>
+              <ul className="openq" style={{marginTop:8}}>
+                {fileActs.slice(0,5).map((a,i)=>(
+                  <li key={i}>{a.name}{a.rolle?" — "+a.rolle:""}{a.systeme&&a.systeme.length?" ["+a.systeme.join(", ")+"]":""}</li>
+                ))}
+                {fileActs.length>5 && <li>… und {fileActs.length-5} weitere</li>}
+              </ul>
+              <button className="btn ghost sm" style={{marginTop:6}} onClick={()=>{setFileActs(null);setFileInfo(null);}}>Datei verwerfen</button>
+            </div>}
+
+          <div style={{margin:"18px 0 6px",fontSize:13,color:"var(--ink-soft)"}}>oder Liste manuell einfügen – eine Zeile pro Schritt:</div>
+          <textarea className="imp-area" value={liste} onChange={e=>setListe(e.target.value)}
+                    placeholder={"Bedarf erfassen\nBestellung anlegen\nFreigabe einholen\nWareneingang prüfen\n…"} />
+
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <button className="btn primary" disabled={!canStart} onClick={startListe}>Aufnahme starten</button>
+            <button className="btn ghost" onClick={()=>setView(null)}>Zurück</button>
+          </div>
+          {fileActs && liste.trim() &&
+            <div className="hint" style={{marginTop:8}}>Hinweis: Es wird die <b>Datei</b> verwendet. Verwerfen Sie sie, um die manuelle Liste zu nutzen.</div>}
+        </div>}
+    </div>
+  );
+}
+
+/* ---- Interview ---- */
+function Interview(props){
+  const { pstate, history, current, loading, error, answer, setAnswer, onSubmit, askRef,
+          onDiagram, onExport, onJSON, onImport, onRestart } = props;
+  const istIst = pstate?.meta?.modus === "ist";
+  const f = current?.fortschritt || { prozent:0, erfasste_bereiche:[], offene_bereiche:[] };
+
+  return (
+    <div>
+      <div className="card pad" style={{marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <h2 className="pname">{pstate?.meta?.prozessname}</h2>
+          <span className={"pmode " + (istIst?"ist":"")}>{istIst ? "Ist-Prozess" : "Grüne Wiese"}</span>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <button className="btn" onClick={onDiagram} disabled={loading}>Prozessbild anzeigen</button>
+        <button className="btn" onClick={onExport} disabled={loading}>Gesamtexport erstellen</button>
+        <button className="btn" onClick={onJSON} disabled={loading}>Zwischenstand exportieren (JSON)</button>
+        <button className="btn" onClick={onImport} disabled={loading}>Stand importieren</button>
+        <button className="btn ghost danger" onClick={onRestart} disabled={loading}>Neu starten</button>
+      </div>
+
+      <div className="grid">
+        <div className="card pad">
+          <div className="log">
+            {history.map((h,i)=>(
+              <div className="turn" key={i}>
+                {h.frage && <div className="q"><span className="lbl">Frage {i+1}</span>{h.frage}</div>}
+                <div className="a"><span className="lbl">Antwort</span><div className="val">{h.antwort}</div></div>
+              </div>
+            ))}
+          </div>
+
+          {loading &&
+            <div className="ask"><span className="spinner"></span> <span className="hint" style={{marginLeft:8}}>Der Assistent verarbeitet die Antwort …</span></div>}
+
+          {!loading && current &&
+            <div className="ask">
+              {current.moderation && <div className="modtxt">{current.moderation}</div>}
+              {current.fertig && !current.naechste_frage
+                ? <div className="question">Die Aufnahme ist inhaltlich vollständig. Sie können jetzt den Gesamtexport erstellen oder weitere Details ergänzen.</div>
+                : <div className="question">{current.naechste_frage}</div>}
+              {!(current.fertig && !current.naechste_frage) &&
+                <div>
+                  <textarea ref={askRef} className="answer" value={answer}
+                            onChange={e=>setAnswer(e.target.value)}
+                            placeholder="Ihre Antwort …"
+                            onKeyDown={e=>{ if(e.key==="Enter" && (e.metaKey||e.ctrlKey)){ e.preventDefault(); onSubmit(); } }} />
+                  <div className="ask-row">
+                    <span className="hint">Strg/⌘ + Enter zum Senden</span>
+                    <button className="btn primary" onClick={onSubmit} disabled={!answer.trim()}>Antwort senden</button>
+                  </div>
+                </div>}
+            </div>}
+
+          {error && <div className="err"><b>Fehler:</b> {error}</div>}
+        </div>
+
+        <aside className="side">
+          <div className="card pad" style={{marginBottom:16}}>
+            <h3>Fortschritt</h3>
+            <div className="prog-bar"><i style={{width:(f.prozent||0)+"%"}}></i></div>
+            <div className="prog-pct">{f.prozent||0} % erfasst</div>
+            {(f.offene_bereiche||[]).length>0 &&
+              <div className="chips">
+                {f.offene_bereiche.map((b,i)=><span className="chip" key={i}>{b}</span>)}
+              </div>}
+            {(f.erfasste_bereiche||[]).length>0 &&
+              <div className="chips">
+                {f.erfasste_bereiche.map((b,i)=><span className="chip done" key={i}>{b}</span>)}
+              </div>}
+          </div>
+          {(pstate?.offene_fragen||[]).length>0 &&
+            <div className="card pad">
+              <h3>Offene Fragen</h3>
+              <ul className="openq">
+                {pstate.offene_fragen.slice(0,8).map((q,i)=><li key={i}>{typeof q==="string"?q:(q.frage||JSON.stringify(q))}</li>)}
+              </ul>
+            </div>}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Modal (Diagramm / Export / Import) ---- */
+function Modal({ modal, close, onImported, pstate }){
+  const [importText, setImportText] = useState("");
+  const [importErr, setImportErr] = useState("");
+  const mref = useRef(null);
+
+  /* Mermaid rendern */
+  useEffect(()=>{
+    if(modal.type==="diagram" && modal.code && window.__mermaidReady && mref.current){
+      const id = "mmd_" + Date.now();
+      window.__mermaid.render(id, modal.code)
+        .then(({svg})=>{ if(mref.current) mref.current.innerHTML = svg; })
+        .catch(()=>{ if(mref.current) mref.current.innerHTML = "<pre class='out'>"+ (modal.code||"").replace(/</g,"&lt;") +"</pre>"; });
+    }
+  },[modal]);
+
+  function doImport(){
+    setImportErr("");
+    try{
+      const obj = JSON.parse(importText);
+      if(!obj.meta) throw new Error("Kein gültiger Prozessstand (Feld 'meta' fehlt).");
+      close(); onImported(obj);
+    }catch(e){ setImportErr("Konnte nicht eingelesen werden: " + (e.message||e)); }
+  }
+  function onFile(e){
+    const file = e.target.files[0]; if(!file) return;
+    const r = new FileReader();
+    r.onload = ()=> setImportText(String(r.result));
+    r.readAsText(file);
+  }
+
+  const title = modal.type==="diagram" ? "Prozessbild"
+              : modal.type==="export"  ? "Gesamtexport"
+              : "Stand importieren";
+
+  return (
+    <div className="overlay" onClick={close}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-head">
+          <h2>{title}</h2>
+          <button className="btn ghost sm" onClick={close}>Schließen</button>
+        </div>
+        <div className="modal-body">
+
+          {modal.type==="diagram" && <>
+            {modal.loading && <p><span className="spinner"></span> Diagramm wird erstellt …</p>}
+            {modal.error && <div className="err">{modal.error}</div>}
+            {modal.code && <>
+              <div className="mermaid-box" ref={mref}></div>
+              <div className="modal-actions">
+                <button className="btn sm" onClick={()=>{navigator.clipboard.writeText(modal.code);}}>Mermaid-Code kopieren</button>
+                <button className="btn sm" onClick={()=>download((pstate?.meta?.prozessname||"prozess")+".mmd", modal.code, "text/plain")}>.mmd herunterladen</button>
+                <button className="btn sm" onClick={()=>{ const svg=mref.current&&mref.current.innerHTML; if(svg) download((pstate?.meta?.prozessname||"prozess")+".svg", svg, "image/svg+xml"); }}>SVG herunterladen</button>
+              </div>
+            </>}
+          </>}
+
+          {modal.type==="export" && <>
+            {modal.loading && <p><span className="spinner"></span> Dokumentation wird erstellt …</p>}
+            {modal.error && <div className="err">{modal.error}</div>}
+            {modal.md && <>
+              <pre className="out">{modal.md}</pre>
+              <div className="modal-actions">
+                <button className="btn sm" onClick={()=>{navigator.clipboard.writeText(modal.md);}}>Markdown kopieren</button>
+                <button className="btn sm primary" onClick={()=>download((pstate?.meta?.prozessname||"prozess").replace(/[^\w\-]+/g,"_")+"_dokumentation.md", modal.md, "text/markdown")}>.md herunterladen</button>
+              </div>
+            </>}
+          </>}
+
+          {modal.type==="import" && <>
+            <label className="fld">JSON-Stand einfügen oder Datei wählen</label>
+            <input type="file" accept=".json,application/json" onChange={onFile} style={{marginBottom:12}} />
+            <textarea className="imp-area" value={importText} onChange={e=>setImportText(e.target.value)}
+                      placeholder='{ "meta": { "prozessname": "…", "modus": "ist", … }, … }' />
+            {importErr && <div className="err">{importErr}</div>}
+            <div className="modal-actions">
+              <button className="btn primary" disabled={!importText.trim()} onClick={doImport}>Importieren & fortsetzen</button>
+            </div>
+          </>}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
