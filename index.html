@@ -172,7 +172,7 @@ const { useState, useEffect, useRef, useCallback } = React;
    Trage hier die URL deines Cloudflare Workers ein (siehe worker.js / DEPLOY).
    Beispiel: "https://prozess-api.rsab1963.workers.dev"
    ======================================================================== */
-const WORKER_URL = "https://prozess-api.rsab1963.workers.dev";
+const WORKER_URL = "DEINE_WORKER_URL_HIER";
 const STORAGE_KEY = "prozessaufnahme_v1";
 
 const PLACEHOLDER = "DEINE_WORKER_URL_HIER";
@@ -216,6 +216,7 @@ const SYS_INTERVIEW = [
 "- Erkenne Automatisierungspotenziale (Medienbrüche, wiederkehrende manuelle Schritte, regelbasierte Entscheidungen) und pflege sie in 'automatisierungspotenziale'.",
 "- Sammle Unklarheiten in 'offene_fragen'.",
 "- Schreibe Frage und Antwort als Eintrag in 'protokoll'.",
+"- Pflege die Diagramm-Struktur: setze für jede Aktivität 'vorgaenger' (Liste von Aktivitäts-IDs) und für Entscheidungen 'optionen' mit 'bedingung' und 'nach_aktivitaet_id' (Ziel-ID), damit der Ablauf als eindeutiger Graph abbildbar ist.",
 "",
 "AUSGABEFORMAT (zwingend): Antworte AUSSCHLIESSLICH mit EINEM gültigen JSON-Objekt, ohne Markdown-Codefences, ohne Text davor oder danach. Struktur:",
 '{',
@@ -229,22 +230,13 @@ const SYS_INTERVIEW = [
 "Gib im Feld 'stand' immer das KOMPLETTE Objekt zurück (nicht nur Änderungen), damit der Stand konsistent bleibt."
 ].join("\n");
 
-const SYS_MERMAID = [
-"Du erstellst aus einem Prozessstand (JSON) ein gültiges Mermaid-Flussdiagramm.",
-"Gib AUSSCHLIESSLICH gültigen Mermaid-Code aus – KEINE Codefences, KEIN Erklärtext.",
-"Verwende: flowchart TD. Start/Ende als ([Text]); Aktivitäten als [Text]; Entscheidungen als {Text?} mit beschrifteten Kanten -->|Bedingung|.",
-"Nutze kurze, eindeutige Knoten-IDs (A1, A2, E1 ...). Halte Beschriftungen kurz. Vermeide Sonderzeichen in IDs.",
-"Wenn Rollen bekannt sind, kannst du sie der Aktivität voranstellen, z.B. \"A2[Sachbearbeiter: Antrag prüfen]\".",
-"Bilde die tatsächliche Reihenfolge und die Entscheidungsverzweigungen ab."
-].join("\n");
-
 const SYS_EXPORT = [
 "Du erstellst aus einem Prozessstand (JSON) eine vollständige, gut strukturierte Markdown-Dokumentation auf Deutsch.",
 "Gib AUSSCHLIESSLICH Markdown aus, ohne umschließende Codefences um das ganze Dokument.",
 "Gliederung in genau dieser Reihenfolge:",
 "1. '# Prozessdokumentation: <Name>' mit Metazeile (Modus, Stand/Datum).",
 "2. '## Prozessbeschreibung' – Fließtext: Ziel, Auslöser, Input, Ablauf in Worten, Rollen, Output.",
-"3. '## Prozessdiagramm' – ein Mermaid-Flussdiagramm in einem Codeblock (drei Backticks gefolgt von 'mermaid').",
+"3. '## Prozessdiagramm' – das unten bereitgestellte Mermaid-Diagramm UNVERÄNDERT in einen Codeblock (drei Backticks gefolgt von 'mermaid') einbetten; nichts neu erfinden oder umbauen.",
 "4. '## Gesprächsprotokoll' – nummerierte Liste aller Frage/Antwort-Paare aus 'protokoll'.",
 "5. '## Offene Fragen' – Liste; falls keine, kurz vermerken.",
 "6. '## Automatisierungsvorschläge' – Liste mit jeweils kurzer Begründung/Nutzen.",
@@ -295,6 +287,107 @@ function download(filename, content, type){
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* ---- Prozessbild deterministisch aus dem Stand erzeugen (kein KI-Aufruf) ---- */
+const ROLE_COLORS = ["#0f6e63","#b4690e","#3a6ea5","#8a3b8f","#487c2b","#a3392f","#5b6770","#0a8d7e","#9a6a00","#6d4caf"];
+function mmEsc(s){ return String(s==null?"":s).replace(/"/g,"'").replace(/[\[\]\{\}\|<>]/g," ").replace(/\s+/g," ").trim(); }
+function mmLabel(s,max){ const t = mmEsc(s).slice(0, max||80); return '"'+(t||"—")+'"'; }
+function mmSafeId(raw, fallback){ const s = String(raw==null?"":raw).replace(/[^A-Za-z0-9_]/g,""); return (/^[A-Za-z]/.test(s) ? s : fallback); }
+
+function buildMermaid(state){
+  state = state || {};
+  const acts = Array.isArray(state.aktivitaeten) ? state.aktivitaeten : [];
+  const decisions = Array.isArray(state.entscheidungen) ? state.entscheidungen : [];
+  const kontext = state.kontext || {};
+  const L = ["flowchart TD"];
+
+  // Rollen + Farben
+  const roles = [];
+  acts.forEach(a=>{ if(a && a.rolle && roles.indexOf(a.rolle)<0) roles.push(a.rolle); });
+  (state.rollen||[]).forEach(r=>{ const rr = (typeof r==="string")?r:(r&&r.rolle); if(rr && roles.indexOf(rr)<0) roles.push(rr); });
+  const roleColor = {}; roles.forEach((r,i)=> roleColor[r]=ROLE_COLORS[i%ROLE_COLORS.length]);
+  const legend = roles.map(r=>({ rolle:r, color:roleColor[r] }));
+
+  if(!acts.length){
+    L.push('  S(["Noch keine Aktivitäten erfasst"])');
+    return { code:L.join("\n"), legend:[] };
+  }
+
+  // ID-Mapping rohId -> mermaid-sichere ID
+  const idMap = {};
+  acts.forEach((a,i)=>{ const raw = (a && a.id) ? a.id : ("A"+(i+1)); idMap[raw] = mmSafeId(raw, "A"+(i+1)); });
+
+  // Start/Ende
+  L.push('  START(['+mmLabel(kontext.ausloeser ? ("Start: "+kontext.ausloeser) : "Start", 60)+'])');
+
+  // Knoten
+  acts.forEach((a,i)=>{
+    const raw = (a && a.id) ? a.id : ("A"+(i+1));
+    const id = idMap[raw];
+    let lbl = (a && a.name) ? a.name : ("Schritt "+(i+1));
+    if(a && a.rolle) lbl = a.rolle + ": " + lbl;
+    const typ = (a && a.typ ? a.typ : "aktivitaet").toLowerCase();
+    if(typ==="entscheidung") L.push('  '+id+'{'+mmLabel(lbl)+'}');
+    else if(typ==="start"||typ==="ende") L.push('  '+id+'(['+mmLabel(lbl)+'])');
+    else L.push('  '+id+'['+mmLabel(lbl)+']');
+  });
+  L.push('  ENDE(['+mmLabel(kontext.output ? ("Ende: "+kontext.output) : "Ende", 60)+'])');
+
+  const incoming = {}, hasOut = {};
+  const graph = decisions.some(d=>d&&(d.optionen||[]).some(o=>o&&o.nach_aktivitaet_id&&idMap[o.nach_aktivitaet_id]))
+             || acts.some(a=>a&&Array.isArray(a.vorgaenger)&&a.vorgaenger.some(p=>idMap[p]));
+
+  // Entscheidungskanten sammeln (auf Aktivität verankert oder eigenständig)
+  const decEdges = [];
+  decisions.forEach((d,di)=>{
+    if(!d) return;
+    let fromRaw=null, fromId=null;
+    if(d.id && idMap[d.id]){ fromRaw=d.id; fromId=idMap[d.id]; }
+    if(!fromId){
+      const m = acts.find(a=> a && (a.typ||"").toLowerCase()==="entscheidung" && a.name && d.frage && a.name.trim().toLowerCase()===String(d.frage).trim().toLowerCase());
+      if(m){ fromRaw=m.id; fromId=idMap[m.id]; }
+    }
+    if(!fromId){ fromId=mmSafeId(d.id,"D"+(di+1)); L.push('  '+fromId+'{'+mmLabel(d.frage||("Entscheidung "+(di+1)))+'}'); }
+    (d.optionen||[]).forEach(o=>{
+      if(!o) return;
+      const t = (o.nach_aktivitaet_id && idMap[o.nach_aktivitaet_id]) ? idMap[o.nach_aktivitaet_id] : null;
+      if(t) decEdges.push({ fromId, label:mmEsc(o.bedingung||""), targetId:t, fromRaw, targetRaw:o.nach_aktivitaet_id });
+    });
+  });
+
+  const edge = (from,to,label)=> L.push(label ? ('  '+from+' -->|"'+label+'"| '+to) : ('  '+from+' --> '+to));
+
+  if(graph){
+    acts.forEach((a,i)=>{
+      const raw=(a&&a.id)?a.id:("A"+(i+1)); const to=idMap[raw];
+      ((a&&a.vorgaenger)||[]).forEach(p=>{ if(idMap[p]){ edge(idMap[p],to); hasOut[p]=true; incoming[raw]=true; } });
+    });
+    decEdges.forEach(e=>{ edge(e.fromId,e.targetId,e.label); if(e.fromRaw) hasOut[e.fromRaw]=true; incoming[e.targetRaw]=true; });
+    acts.forEach((a,i)=>{ const raw=(a&&a.id)?a.id:("A"+(i+1)); if(!incoming[raw]) edge('START',idMap[raw]); });
+    acts.forEach((a,i)=>{ const raw=(a&&a.id)?a.id:("A"+(i+1)); if(!hasOut[raw]) edge(idMap[raw],'ENDE'); });
+  }else{
+    let prev="START";
+    acts.forEach((a,i)=>{
+      const raw=(a&&a.id)?a.id:("A"+(i+1)); const id=idMap[raw];
+      if(prev) edge(prev,id);
+      const branches = decEdges.filter(e=>e.fromId===id);
+      if(branches.length){ branches.forEach(b=>edge(b.fromId,b.targetId,b.label)); prev=null; }
+      else prev=id;
+    });
+    if(prev && prev!=="START") edge(prev,"ENDE"); else if(prev==="START") edge("START","ENDE");
+  }
+
+  // Rollen-Farben
+  roles.forEach((r,i)=>{
+    const ids = acts.filter(a=>a&&a.rolle===r).map(a=>idMap[a.id]).filter(Boolean);
+    if(ids.length){
+      L.push('  classDef role'+i+' fill:'+roleColor[r]+',color:#fff,stroke:#2a2f2d,stroke-width:1px;');
+      L.push('  class '+ids.join(",")+' role'+i+';');
+    }
+  });
+
+  return { code:L.join("\n"), legend };
 }
 
 /* ---- Excel/CSV einlesen (SheetJS) mit Spaltenerkennung ---- */
@@ -475,18 +568,20 @@ function App(){
     download((pstate.meta.prozessname||"prozess").replace(/[^\w\-]+/g,"_") + "_stand.json",
              JSON.stringify(pstate, null, 2), "application/json");
   }
-  async function showDiagram(){
-    setModal({ type:"diagram", loading:true });
+  function showDiagram(){
     try{
-      const code = (await callClaude(SYS_MERMAID, "Prozessstand (JSON):\n"+JSON.stringify(pstate)+"\n\nErzeuge das Mermaid-Diagramm.", 2000))
-                    .replace(/^```(?:mermaid)?/i,"").replace(/```$/,"").trim();
-      setModal({ type:"diagram", loading:false, code });
+      const { code, legend } = buildMermaid(pstate);
+      setModal({ type:"diagram", loading:false, code, legend });
     }catch(e){ setModal({ type:"diagram", loading:false, error: e.message||String(e) }); }
   }
   async function fullExport(){
     setModal({ type:"export", loading:true });
     try{
-      const md = await callClaude(SYS_EXPORT, "Prozessstand (JSON):\n"+JSON.stringify(pstate)+"\n\nErstelle die vollständige Markdown-Dokumentation.", 6000);
+      const { code } = buildMermaid(pstate);
+      const md = await callClaude(SYS_EXPORT,
+        "Prozessstand (JSON):\n" + JSON.stringify(pstate)
+        + "\n\nBereitgestelltes Mermaid-Diagramm (für Abschnitt 'Prozessdiagramm' unverändert übernehmen):\n" + code
+        + "\n\nErstelle die vollständige Markdown-Dokumentation.", 6000);
       setModal({ type:"export", loading:false, md });
     }catch(e){ setModal({ type:"export", loading:false, error: e.message||String(e) }); }
   }
@@ -785,6 +880,15 @@ function Modal({ modal, close, onImported, pstate }){
             {modal.error && <div className="err">{modal.error}</div>}
             {modal.code && <>
               <div className="mermaid-box" ref={mref}></div>
+              {modal.legend && modal.legend.length>0 &&
+                <div style={{display:"flex",flexWrap:"wrap",gap:"8px 18px",marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em"}}>Rollen</span>
+                  {modal.legend.map((l,i)=>(
+                    <span key={i} style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:13.5}}>
+                      <span style={{width:13,height:13,borderRadius:3,background:l.color,display:"inline-block"}}></span>{l.rolle}
+                    </span>
+                  ))}
+                </div>}
               <div className="modal-actions">
                 <button className="btn sm" onClick={()=>{navigator.clipboard.writeText(modal.code);}}>Mermaid-Code kopieren</button>
                 <button className="btn sm" onClick={()=>download((pstate?.meta?.prozessname||"prozess")+".mmd", modal.code, "text/plain")}>.mmd herunterladen</button>
