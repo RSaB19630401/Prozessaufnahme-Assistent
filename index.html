@@ -868,111 +868,6 @@ function Learn() {
   </div>`;
 }
 
-// ── KI-Berater (Live-Chat über Cloudflare-Worker-Proxy) ────────────────────
-// >>> HIER DEINE WORKER-URL EINTRAGEN (aus dem Cloudflare-Dashboard) <<<
-const WORKER_URL = "https://DEIN-WORKER.workers.dev";
-
-const CHAT_STARTERS = [
-  "Wie starte ich mit KI in meinem Team?",
-  "Welche Use Cases passen fürs Controlling?",
-  "Wie gehe ich mit Datenschutz und Governance um?",
-  "Was sind die ersten 3 Schritte zur KI-Einführung?",
-];
-
-
-// ── Use-Case-Kontext für den Chat (leichte Relevanzsuche im Browser) ───────
-function deptLabel(id){ const d=DEPTS.find(x=>x.id===id); return d?d.label:id; }
-function ucCatalogLine(u){ return "- ["+u.category+"] "+u.title+" (Governance "+(u.gov||"")+") – "+u.solution; }
-function ucDetail(u){
-  return "### "+u.title+" ("+u.category+")\n"
-    + "Abteilungen: "+u.dept.map(deptLabel).join(", ")+" | Gruppen: "+u.personas.join(", ")+"\n"
-    + "Lösung: "+u.solution+"\n"
-    + "Beispiel: "+u.example+"\n"
-    + "Nutzen: "+u.benefit+"\n"
-    + "Tools: "+u.tools.join(", ")+"\n"
-    + "Governance: "+u.govText+". Wann nicht nutzen: "+(u.whenNot||"-")+"\n"
-    + "Verfügbare Prompts: "+u.prompts.map(p=>p.label).join(", ");
-}
-const CTX_STOP = {und:1,oder:1,der:1,die:1,das:1,ein:1,eine:1,einen:1,ich:1,wie:1,was:1,für:1,mit:1,von:1,den:1,dem:1,des:1,bei:1,zum:1,zur:1,auf:1,ist:1,sind:1,kann:1,soll:1,mein:1,meine:1,meinem:1};
-function buildContext(query){
-  const toks = (query||"").toLowerCase().split(/[^a-zäöüß0-9]+/).filter(t=>t.length>2 && !CTX_STOP[t]);
-  const scored = UC.map(u=>{
-    const hay = (u.title+" "+u.solution+" "+u.category+" "+u.tools.join(" ")+" "+(u.details||[]).join(" ")+" "+u.dept.map(deptLabel).join(" ")+" "+u.personas.join(" ")).toLowerCase();
-    let score=0; const title=u.title.toLowerCase();
-    toks.forEach(t=>{ if(hay.indexOf(t)>=0) score++; if(title.indexOf(t)>=0) score++; });
-    return {u,score};
-  });
-  const top = scored.filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,5).map(x=>x.u);
-  let ctx = "KATALOG ALLER USE CASES:\n" + UC.map(ucCatalogLine).join("\n");
-  if(top.length) ctx += "\n\nDETAILS ZU RELEVANTEN USE CASES:\n" + top.map(ucDetail).join("\n\n");
-  return ctx;
-}
-
-function Assistant() {
-  const [messages,setMessages] = useState([]);
-  const [input,setInput] = useState("");
-  const [loading,setLoading] = useState(false);
-  const [error,setError] = useState("");
-  const scrollRef = useRef(null);
-  const configured = WORKER_URL && WORKER_URL.indexOf("DEIN-WORKER") === -1;
-
-  useEffect(()=>{ const el=scrollRef.current; if(el) el.scrollTop=el.scrollHeight; },[messages,loading]);
-
-  const send = async (text) => {
-    const content = (text!==undefined ? text : input).trim();
-    if(!content || loading) return;
-    setError("");
-    const next = [...messages,{role:"user",content}];
-    setMessages(next); setInput("");
-    if(!configured){ setError("Bitte zuerst WORKER_URL im Quelltext eintragen."); return; }
-    setLoading(true);
-    try{
-      const r = await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:next.slice(-24),context:buildContext(content)})});
-      const data = await r.json().catch(()=>({error:"Ungültige Antwort vom Server."}));
-      if(!r.ok || data.error){ setError(data.error || ("Fehler ("+r.status+")")); }
-      else { setMessages(m=>[...m,{role:"assistant",content:data.reply||"(keine Antwort)"}]); }
-    }catch(e){ setError("Verbindung zum KI-Dienst fehlgeschlagen. WORKER_URL korrekt und Worker deployed?"); }
-    finally{ setLoading(false); }
-  };
-  const onKey = (e)=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); send(); } };
-
-  return html`<div class="fade-in">
-    <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>KI-Berater</h2>
-    <p style=${{color:C.muted,fontSize:13,marginBottom:14}}>Direkter Chat über deinen Cloudflare-Worker. Bitte keine vertraulichen oder personenbezogenen Daten eingeben.</p>
-    ${!configured && html`<div style=${{background:C.amberLight,border:`1px solid ${C.amber}40`,borderRadius:9,padding:"11px 14px",marginBottom:12,fontSize:12,color:C.text,lineHeight:1.6}}>⚙️ <strong>Noch nicht verbunden.</strong> Trage im Quelltext bei <code>WORKER_URL</code> deine Cloudflare-Worker-URL ein und hinterlege im Worker das Secret <code>ANTHROPIC_API_KEY</code>.</div>`}
-    <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,display:"flex",flexDirection:"column",height:"60vh",minHeight:380,overflow:"hidden"}}>
-      <div ref=${scrollRef} style=${{flex:1,overflowY:"auto",padding:"16px 16px 4px"}}>
-        ${messages.length===0 && html`<div style=${{textAlign:"center",padding:"24px 10px"}}>
-          <div style=${{fontSize:40,marginBottom:10}}>💬</div>
-          <div style=${{fontWeight:800,fontSize:15,marginBottom:6}}>Womit kann ich helfen?</div>
-          <p style=${{color:C.muted,fontSize:12,maxWidth:380,margin:"0 auto 14px",lineHeight:1.6}}>Frag mich zu KI-Einführung, passenden Use Cases, Governance oder Prompts.</p>
-          <div style=${{display:"flex",flexDirection:"column",gap:7,maxWidth:420,margin:"0 auto"}}>
-            ${CHAT_STARTERS.map(st=>html`<button key=${st} onClick=${()=>send(st)} style=${{background:C.surface2,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",cursor:"pointer",fontSize:12,color:C.text,textAlign:"left"}}>${st}</button>`)}
-          </div>
-        </div>`}
-        ${messages.map((m,i)=>html`<div key=${i} style=${{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:10}}>
-          <div style=${{maxWidth:"82%",background:m.role==="user"?C.magenta:C.surface2,color:m.role==="user"?"#fff":C.text,border:m.role==="user"?"none":`1px solid ${C.border}`,borderRadius:12,padding:"9px 13px",fontSize:12.5,lineHeight:1.65,whiteSpace:"pre-wrap"}}>${m.content}</div>
-        </div>`)}
-        ${loading && html`<div style=${{display:"flex",justifyContent:"flex-start",marginBottom:10}}>
-          <div style=${{background:C.surface2,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 15px",display:"flex",gap:5}}>
-            ${[0,1,2].map(i=>html`<div key=${i} style=${{width:7,height:7,borderRadius:"50%",background:C.dim,animation:`pulse 1.2s ${i*0.18}s infinite`}}/>`)}
-          </div>
-        </div>`}
-      </div>
-      ${error && html`<div style=${{color:C.red,fontSize:11.5,padding:"0 16px 8px"}}>⚠️ ${error}</div>`}
-      <div style=${{borderTop:`1px solid ${C.border}`,padding:"10px 12px",display:"flex",gap:8,alignItems:"flex-end"}}>
-        <textarea value=${input} onChange=${e=>setInput(e.target.value)} onKeyDown=${onKey} rows=${1} placeholder="Nachricht schreiben ... (Enter = senden, Shift+Enter = Zeilenumbruch)"
-          style=${{flex:1,resize:"none",maxHeight:120,background:C.surface2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",fontSize:12.5,color:C.text,lineHeight:1.5}}/>
-        <button onClick=${()=>send()} disabled=${loading||!input.trim()} style=${{background:(loading||!input.trim())?C.surface3:C.magenta,color:(loading||!input.trim())?C.dim:"#fff",border:"none",borderRadius:9,padding:"10px 16px",cursor:(loading||!input.trim())?"default":"pointer",fontWeight:800,fontSize:13,whiteSpace:"nowrap"}}>Senden</button>
-      </div>
-    </div>
-    <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,gap:10,flexWrap:"wrap"}}>
-      <span style=${{color:C.dim,fontSize:10.5}}>Antworten können Fehler enthalten – bitte prüfen. Der Verlauf wird nicht gespeichert.</span>
-      ${messages.length>0 && html`<button onClick=${()=>{setMessages([]);setError("");}} style=${{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"5px 12px",cursor:"pointer",fontSize:11,fontWeight:700}}>↺ Neu starten</button>`}
-    </div>
-  </div>`;
-}
-
 // ── Main App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [tab,setTab] = useState("home");
@@ -991,7 +886,6 @@ function App() {
     {id:"maturity",label:"Reifegrad",icon:"📈"},
     {id:"tools",label:"Tools",icon:"🛠️"},
     {id:"governance",label:"Governance",icon:"🛡️"},
-    {id:"assistant",label:"KI-Berater",icon:"🤖"},
   ];
   const CATS = ["Alle"].concat(Array.from(new Set(UC.map(u=>u.category))));
   const filterList = ucMode==="dept" ? DEPTS : [{id:"all",label:"Alle Gruppen",icon:"🌐"}].concat(PERSONAS);
@@ -1071,7 +965,6 @@ function App() {
       </div>`}
 
       ${tab==="learn" && html`<${Learn}/>`}
-      ${tab==="assistant" && html`<${Assistant}/>`}
 
       ${tab==="strategy" && html`<div class="fade-in">
         <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>Strategie</h2>
