@@ -1,1135 +1,932 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>KI-Lernplattform</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prozessaufnahme-Assistent</title>
+
+<!-- React + Babel (no build tools) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- SheetJS: Excel & CSV einlesen -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+
+<!-- Mermaid (ESM) -> auf window legen -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose', flowchart: { useMaxWidth: true } });
+  window.__mermaid = mermaid;
+  window.__mermaidReady = true;
+</script>
+
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#f2f2f2;color:#191919;font-family:'Inter','Helvetica Neue',Arial,sans-serif}
-::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#e8e8e8}::-webkit-scrollbar-thumb{background:#c0c0c0;border-radius:3px}
-input,textarea{font-family:inherit}
-input:focus,textarea:focus{outline:none}
-@keyframes pulse{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.fade-in{animation:fadeIn .25s ease forwards}
-a{color:inherit}
-@media(max-width:780px){.nav-row{flex-wrap:wrap;height:auto!important;padding:8px 0}.hide-sm{display:none!important}}
+  :root{
+    --bg:#f4f5f3;
+    --surface:#ffffff;
+    --ink:#1d2321;
+    --ink-soft:#525a57;
+    --line:#e2e5e1;
+    --line-strong:#cfd4cf;
+    --accent:#0f6e63;        /* petrol */
+    --accent-soft:#e4f0ee;
+    --accent-ink:#0a4a43;
+    --amber:#b4690e;
+    --danger:#a3392f;
+    --shadow:0 1px 2px rgba(20,30,28,.04), 0 8px 24px -12px rgba(20,30,28,.18);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  #root{min-height:100vh;}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px;}
+  h1,h2,h3{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;letter-spacing:-.01em;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* Header */
+  .app-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+  .brand h1{font-size:20px;margin:0;}
+  .brand .sub{font-size:12.5px;color:var(--ink-soft);margin-top:1px;}
+  .conn{font-size:12px;display:flex;align-items:center;gap:7px;color:var(--ink-soft);}
+  .conn .led{width:8px;height:8px;border-radius:50%;}
+  .led.ok{background:#2f9e57;} .led.bad{background:var(--danger);}
+
+  /* Cards / panels */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
+  .pad{padding:24px;}
+
+  /* Buttons */
+  .btn{font-family:inherit;font-size:14px;font-weight:500;border-radius:9px;border:1px solid var(--line-strong);
+       background:var(--surface);color:var(--ink);padding:9px 15px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;}
+  .btn:hover{border-color:var(--accent);color:var(--accent-ink);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-ink);color:#fff;}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--ink-soft);}
+  .btn.ghost:hover{background:var(--accent-soft);color:var(--accent-ink);}
+  .btn.sm{padding:6px 11px;font-size:13px;}
+  .btn.danger:hover{border-color:var(--danger);color:var(--danger);}
+
+  /* Start screen */
+  .lead{font-size:15px;color:var(--ink-soft);max-width:62ch;}
+  .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px;}
+  @media(max-width:720px){.modes{grid-template-columns:1fr;}.app-head{align-items:flex-start;}}
+  .mode{text-align:left;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+        padding:20px;cursor:pointer;transition:.18s;display:flex;flex-direction:column;gap:8px;min-height:150px;}
+  .mode:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow);}
+  .mode .k{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
+  .mode .t{font-family:'IBM Plex Serif',serif;font-size:18px;font-weight:600;}
+  .mode .d{font-size:13.5px;color:var(--ink-soft);}
+  .resume{margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+          background:var(--accent-soft);border:1px solid #cfe5e1;border-radius:11px;padding:12px 16px;}
+  .resume .txt{font-size:13.5px;color:var(--accent-ink);}
+
+  /* Interview layout */
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+  .pname{font-family:'IBM Plex Serif',serif;font-size:17px;font-weight:600;margin:0;}
+  .pmode{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#fff;
+         background:var(--accent);padding:2px 8px;border-radius:6px;}
+  .pmode.ist{background:var(--amber);}
+
+  /* Protocol */
+  .log{display:flex;flex-direction:column;gap:0;}
+  .turn{padding:14px 0;border-bottom:1px dashed var(--line);}
+  .turn:last-child{border-bottom:none;}
+  .q{font-size:14.5px;}
+  .q .lbl,.a .lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:3px;}
+  .mod{font-size:13.5px;color:var(--ink-soft);font-style:italic;margin-bottom:6px;}
+  .a{margin-top:10px;}
+  .a .val{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-size:14px;white-space:pre-wrap;}
+
+  /* Current question */
+  .ask{border-top:2px solid var(--accent-soft);margin-top:6px;padding-top:18px;}
+  .ask .modtxt{font-size:13.5px;color:var(--ink-soft);margin-bottom:8px;}
+  .ask .question{font-family:'IBM Plex Serif',serif;font-size:19px;font-weight:600;line-height:1.4;margin-bottom:14px;}
+  textarea.answer{width:100%;min-height:84px;resize:vertical;font-family:inherit;font-size:14.5px;color:var(--ink);
+                  border:1px solid var(--line-strong);border-radius:10px;padding:12px 14px;background:var(--surface);}
+  textarea.answer:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .ask-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:12px;flex-wrap:wrap;}
+  .hint{font-size:12px;color:var(--ink-soft);}
+
+  /* Sidebar */
+  .side h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-family:'IBM Plex Sans',sans-serif;font-weight:600;margin:0 0 10px;}
+  .prog-bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden;}
+  .prog-bar i{display:block;height:100%;background:var(--accent);transition:width .4s;}
+  .prog-pct{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .chip{font-size:11.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line);color:var(--ink-soft);}
+  .chip.done{background:var(--accent-soft);border-color:#cfe5e1;color:var(--accent-ink);}
+  .openq{font-size:13px;color:var(--ink-soft);margin:6px 0 0;padding-left:18px;}
+  .openq li{margin:4px 0;}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(20,28,26,.45);display:flex;align-items:flex-start;justify-content:center;
+           padding:40px 16px;overflow:auto;z-index:50;}
+  .modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);max-width:860px;width:100%;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);}
+  .modal-head h2{font-size:18px;margin:0;}
+  .modal-body{padding:22px;}
+  pre.out{background:#1d2321;color:#e9ece9;border-radius:10px;padding:16px;overflow:auto;font-family:'IBM Plex Mono',monospace;
+          font-size:12.5px;line-height:1.6;max-height:60vh;white-space:pre-wrap;word-break:break-word;}
+  .mermaid-box{overflow:auto;text-align:center;border:1px solid var(--line);border-radius:10px;padding:16px;background:#fafbfa;}
+  .modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}
+
+  /* misc */
+  .err{background:#fbeceA;border:1px solid #f0cfca;color:var(--danger);border-radius:10px;padding:12px 15px;font-size:13.5px;margin-top:14px;}
+  .banner{background:#fff5e6;border:1px solid #f0dcb4;color:var(--amber);border-radius:11px;padding:12px 16px;font-size:13.5px;margin-bottom:20px;}
+  .spinner{width:16px;height:16px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .imp-area{width:100%;min-height:160px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;border:1px solid var(--line-strong);
+            border-radius:10px;padding:12px;resize:vertical;}
+  label.fld{display:block;font-size:13px;font-weight:500;margin:0 0 6px;color:var(--ink-soft);}
+  input.txt{width:100%;font-family:inherit;font-size:14.5px;border:1px solid var(--line-strong);border-radius:10px;padding:10px 13px;}
+  input.txt:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 </style>
 </head>
 <body>
-<div id="root"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;">
-  <div style="width:40px;height:40px;border-radius:6px;background:#4338ca;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff;letter-spacing:.5px;">KI</div>
-  <div style="font-weight:700;font-size:16px;">KI-Lernplattform wird geladen...</div>
-</div></div>
-<script type="module">
-import htm from 'https://esm.sh/htm@3.1.1';
-const html = htm.bind(React.createElement);
-const { useState, useEffect, useRef } = React;
+<div id="root"></div>
 
-// ── Palette ───────────────────────────────────────────────────────────────────
-const C = {
-  bg:"#f2f2f2",surface:"#ffffff",surface2:"#f7f7f7",surface3:"#efefef",
-  border:"#dcdcdc",
-  magenta:"#4338ca",magentaDark:"#312e9e",magentaLight:"#eceefb",
-  violet:"#6e00cc",violetLight:"#f0e6ff",
-  teal:"#00a0d2",tealLight:"#e0f4fb",
-  green:"#00a550",greenLight:"#e6f7ee",
-  amber:"#d98a00",amberLight:"#fdf3e0",
-  red:"#d92d20",redLight:"#fdeceb",
-  navBg:"#191919",
-  text:"#191919",muted:"#595959",dim:"#909090"
-};
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
 
-// ── Taxonomies ──────────────────────────────────────────────────────────────────
-const DEPTS = [
-  {id:"all",label:"Alle",icon:"🏢"},
-  {id:"management",label:"Management",icon:"👔"},
-  {id:"controlling",label:"Controlling",icon:"📊"},
-  {id:"it",label:"IT",icon:"💻"},
-  {id:"hr",label:"HR",icon:"👥"},
-  {id:"marketing",label:"Marketing",icon:"📣"},
-  {id:"sales",label:"Vertrieb",icon:"🤝"},
-  {id:"operations",label:"Operations",icon:"⚙️"},
-];
-const PERSONAS = [
-  {id:"Führungskräfte",label:"Führungskräfte",icon:"🎯"},
-  {id:"Mitarbeitende",label:"Mitarbeitende",icon:"🙋"},
-  {id:"Projektteams",label:"Projektteams",icon:"👥"},
-  {id:"Controlling",label:"Controlling",icon:"📊"},
-  {id:"KI-Verantwortliche",label:"KI-Verantwortliche",icon:"🧭"},
-];
+/* ========================================================================
+   KONFIGURATION
+   ------------------------------------------------------------------------
+   Trage hier die URL deines Cloudflare Workers ein (siehe worker.js / DEPLOY).
+   Beispiel: "https://prozess-api.rsab1963.workers.dev"
+   ======================================================================== */
+const WORKER_URL = "DEINE_WORKER_URL_HIER";
+const STORAGE_KEY = "prozessaufnahme_v1";
 
-// ── Unified Use-Case dataset ─────────────────────────────────────────────────────
-// Felder: id,title,icon,col,category,dept[],personas[],level,time?,tools[],
-//   toolRecommendation,problem,solution,benefit,example,details?[],kpis?[],
-//   prompts[{label,text}],gov(text)?,govDerived?,govHints?[],whenNot?,qualityCheck?[],risk
-const UC = [
- // ── Kommunikation & Alltag ──────────────────────────────────────────────────
- {id:"ki-everyday",title:"KI-Assistent für den Alltag",icon:"🤖",col:C.magenta,
-  category:"Produktivität & Lernen",dept:["all"],personas:["Mitarbeitende"],level:"Einsteiger",time:"Sofort",
-  tools:["Claude","ChatGPT","Microsoft Copilot"],
-  toolRecommendation:"Für freie Texte und Übersetzungen sind Claude, ChatGPT gut geeignet. Copilot passt, wenn direkt in Outlook/Word gearbeitet wird. Keine vertraulichen Inhalte in nicht freigegebene Tools.",
-  problem:"Routineaufgaben wie E-Mails, Übersetzungen und Zusammenfassungen kosten täglich viel Zeit.",
-  solution:"KI übernimmt zeitraubende Textarbeit – formulieren, übersetzen, zusammenfassen, vereinfachen.",
-  benefit:"Ø 2–3 Stunden Zeitersparnis pro Mitarbeiter/Woche.",
-  example:"12 ungelesene E-Mails auf Englisch, Französisch und Deutsch: KI fasst jede in einem Satz zusammen, priorisiert und schlägt für die 3 dringendsten Antworten vor – fertig in unter 2 Minuten.",
-  details:["E-Mails in Sekunden formulieren und übersetzen","Lange Dokumente auf das Wesentliche zusammenfassen","Brainstorming und Ideengenerierung für Präsentationen","Texte vereinfachen und zielgruppengerecht umformulieren","Sprachbarrieren überwinden: Kommunikation in 50+ Sprachen"],
-  kpis:["E-Mail-Bearbeitung −50%","Übersetzungskosten −80%","Antwortqualität messbar besser"],
-  prompts:[
-    {label:"E-Mail verfassen",text:"Schreibe eine professionelle E-Mail an [Empfänger] zum Thema [Thema]. Ton: [freundlich/sachlich/förmlich]. Wichtige Punkte: [1. Punkt, 2. Punkt]. Länge: maximal 5 Sätze."},
-    {label:"Text zusammenfassen",text:"Fasse den folgenden Text in maximal 5 Stichpunkten zusammen. Hebe die wichtigsten Handlungsempfehlungen hervor:\n\n[TEXT EINFÜGEN]"},
-    {label:"Text vereinfachen",text:"Formuliere diesen Fachtext so um, dass ihn ein Mitarbeiter ohne Kenntnisse in [Bereich] versteht. Kurze Sätze, kein Jargon:\n\n[TEXT EINFÜGEN]"},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",govDerived:true,
-  govHints:["Keine vertraulichen oder personenbezogenen Inhalte in externe Tools eingeben","Tonalität und Fakten vor Versand prüfen"],
-  risk:"Tonalität und sachliche Richtigkeit prüfen, besonders bei sensiblen Themen."},
+const PLACEHOLDER = "DEINE_WORKER_URL_HIER";
+const WORKER_SET = WORKER_URL && WORKER_URL !== PLACEHOLDER;
 
- {id:"email-optimization",title:"E-Mail klar und professionell formulieren",icon:"✉️",col:C.magenta,
-  category:"Kommunikation",dept:["all"],personas:["Mitarbeitende"],level:"Einsteiger",
-  tools:["Microsoft Copilot","ChatGPT","Google Gemini"],
-  toolRecommendation:"Copilot ist sinnvoll bei Outlook-Integration. ChatGPT oder Gemini eignen sich für freie Formulierungsvarianten ohne sensible Inhalte.",
-  problem:"E-Mails sind oft zu lang, unklar oder nicht adressatengerecht.",
-  solution:"KI verbessert Struktur, Tonalität, Kürze und Verständlichkeit.",
-  benefit:"Weniger Rückfragen und effizientere Kommunikation.",
-  example:"Aus einem langen Entwurf wird eine klare, freundliche und kurze Nachricht.",
-  prompts:[
-    {label:"E-Mail optimieren",text:"Optimiere die folgende E-Mail.\n\nZiel:\n- kürzer\n- klarer\n- professionell und freundlich\n- mit eindeutiger Handlungsaufforderung, falls sinnvoll\n\nErhalte die Kernaussage und verändere keine Fakten.\n\n[E-MAIL-TEXT EINFÜGEN]"},
-    {label:"E-Mail übersetzen & beantworten",text:"Übersetze diese E-Mail ins Deutsche und schlage drei Antwortmöglichkeiten vor (kurz/ausführlich/ablehnend):\n\n[E-MAIL EINFÜGEN]"},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",
-  govHints:["Keine vertraulichen oder personenbezogenen Inhalte in externe Tools eingeben","Tonalität und Fakten vor Versand prüfen","Bei Kunden- oder Managementkommunikation besonders sorgfältig prüfen"],
-  risk:"Tonalität und sachliche Richtigkeit prüfen, besonders bei sensiblen Themen."},
-
- {id:"report-summary",title:"Lange Berichte verdichten",icon:"📑",col:C.violet,
-  category:"Kommunikation",dept:["all","management","controlling"],personas:["Führungskräfte","Controlling","Projektteams"],level:"Einsteiger bis Management",
-  tools:["Claude","ChatGPT","Microsoft Copilot"],
-  toolRecommendation:"Claude und ChatGPT sind besonders geeignet für lange Texte. Copilot passt gut, wenn Berichte in Word, PowerPoint oder SharePoint liegen.",
-  problem:"Berichte enthalten viele Details, aber die wichtigsten Aussagen sind schwer schnell erfassbar.",
-  solution:"KI fasst Kernaussagen, Risiken, offene Punkte und Handlungsbedarf zusammen.",
-  benefit:"Schneller Überblick und bessere Vorbereitung auf Entscheidungen.",
-  example:"Aus 10 Seiten Bericht werden 7 Kernaussagen und 3 Handlungspunkte.",
-  prompts:[
-    {label:"Bericht zusammenfassen",text:"Fasse den folgenden Bericht managementtauglich zusammen.\n\nErstelle:\n1. Executive Summary mit max. 7 Bulletpoints\n2. wichtigste Zahlen / Fakten\n3. Risiken\n4. offene Punkte\n5. empfohlene nächste Schritte\n\nVerändere keine Zahlen und markiere Unsicherheiten.\n\n[BERICHT EINFÜGEN]"},
-    {label:"Executive Summary",text:"Fasse diesen [Bericht/Vertrag] in max. 200 Wörtern zusammen. Struktur: Ausgangslage – Kernaussagen – Empfohlene Maßnahmen.\n\n[DOKUMENT]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Nur freigegebene Tools bei internen Berichten nutzen","Zahlen und Kernaussagen gegen Originalbericht prüfen","Quellen und Auslassungen transparent machen"],
-  risk:"Bei langen Dokumenten prüfen, ob alle relevanten Abschnitte berücksichtigt wurden."},
-
- {id:"doc-contract-check",title:"Dokumentenanalyse & Vertragscheck",icon:"📄",col:C.violet,
-  category:"Analyse & Controlling",dept:["all","management"],personas:["Führungskräfte","Projektteams"],level:"Mittel",time:"Sofort",
-  tools:["Claude","ChatGPT","Gemini"],
-  toolRecommendation:"Claude und ChatGPT sind stark bei langen Dokumenten. Verträge und vertrauliche Unterlagen ausschließlich in freigegebenen Umgebungen verarbeiten.",
-  problem:"Lange PDFs, Verträge und Berichte müssen oft komplett gelesen werden, um relevante Stellen zu finden.",
-  solution:"KI extrahiert gezielt Klauseln, Fristen, Risiken und Unterschiede zwischen Dokumenten.",
-  benefit:"Dokumentenprüfung bis zu 10× schneller.",
-  example:"Neuer Lieferantenvertrag, 80 Seiten: KI identifiziert alle Haftungs- und Kündigungsklauseln, vergleicht mit dem Altvertrag und erstellt eine Risikoübersicht mit Ampelfarben – Lesezeit von 4 Stunden auf 15 Minuten.",
-  details:["Verträge auf kritische Klauseln, Fristen und Risiken prüfen","Berichte auf Kernaussagen destillieren","Mehrere Dokumente vergleichen und Unterschiede hervorheben","Gesetzestexte in verständliche Sprache übersetzen"],
-  kpis:["Prüfzeit −90%","Risikoerkennung verbessert","Juristische Vorprüfung intern möglich"],
-  prompts:[
-    {label:"Vertrag analysieren",text:"Analysiere diesen Vertrag: (1) Hauptpflichten beider Parteien, (2) Kündigungsfristen, (3) Haftungsklauseln, (4) kritische Klauseln. Markiere Risiken mit ⚠️.\n\n[VERTRAGSTEXT]"},
-    {label:"Zwei Versionen vergleichen",text:"Vergleiche diese zwei Vertragsfassungen. Liste alle Unterschiede auf. Kennzeichne: vorteilhaft (✅), nachteilig (❌), neutral (○).\n\nVersion A: [TEXT]\nVersion B: [TEXT]"},
-  ],
-  gov:"🔴 Kritisch",govDerived:true,
-  govHints:["Verträge und vertrauliche Dokumente nur in freigegebenen Umgebungen verarbeiten","KI-Hinweise rechtlich gegenprüfen lassen","Keine personenbezogenen Daten in externe Tools geben"],
-  whenNot:"Wenn keine Freigabe für die Verarbeitung vertraulicher Vertragsinhalte vorliegt.",
-  qualityCheck:["Wurden alle kritischen Klauseln erfasst?","Sind Fristen korrekt?","Ist eine juristische Endprüfung erfolgt?"],
-  risk:"KI ersetzt keine rechtliche Prüfung. Ergebnisse sind eine Vorstrukturierung, keine Rechtsberatung."},
-
- // ── Meetings & Organisation ──────────────────────────────────────────────────
- {id:"meeting-summary",title:"Meeting professionell zusammenfassen",icon:"📝",col:C.teal,
-  category:"Meetings & Organisation",dept:["all","management","operations"],personas:["Mitarbeitende","Projektteams","Führungskräfte"],level:"Einsteiger bis Management",time:"Sofort",
-  tools:["Microsoft Copilot","ChatGPT","Claude"],
-  toolRecommendation:"Copilot ist besonders geeignet, wenn Meetingnotizen, Teams-Kontext oder M365-Dokumente genutzt werden. ChatGPT oder Claude eignen sich gut für neutrale Notizen und längere Texte.",
-  problem:"Meetings erzeugen viele Informationen, aber Entscheidungen, offene Punkte und Verantwortlichkeiten bleiben oft unklar.",
-  solution:"KI strukturiert Notizen oder Transkripte in Entscheidungen, offene Punkte, To-dos und Verantwortlichkeiten.",
-  benefit:"Weniger Nacharbeit, klarere Umsetzung und bessere Nachverfolgbarkeit.",
-  example:"Aus unsortierten Meetingnotizen entsteht eine management-taugliche Zusammenfassung mit Entscheidungen und nächsten Schritten.",
-  kpis:["Protokollerstellung: 30 Min → 0 Min","Action-Item-Follow-up +60%","Meeting-Effizienz messbar besser"],
-  prompts:[
-    {label:"Protokoll aus Notizen",text:"Fasse die folgenden Meetingnotizen strukturiert zusammen.\n\nErstelle:\n1. Kurzzusammenfassung in 5 Sätzen\n2. Entscheidungen\n3. Offene Punkte\n4. Nächste Schritte mit Verantwortlichen und Termin, falls vorhanden\n5. Risiken oder Klärungsbedarf\n\nFormuliere sachlich, präzise und gut lesbar.\n\n[NOTIZEN EINFÜGEN]"},
-    {label:"Agenda erstellen",text:"Erstelle eine Meeting-Agenda für [Dauer] zum Thema [Thema] mit [Anzahl] Teilnehmern. Ziel: [Ziel]. Offene Punkte: [Punkte]. Mit Zeitblöcken und Verantwortlichen."},
-    {label:"Follow-up E-Mail",text:"Schreibe eine Follow-up-Mail an alle Teilnehmer: Dank, 3 Kernbeschlüsse, Action Items mit Verantwortlichen und Deadlines.\n\n[PROTOKOLL]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Keine sensiblen personenbezogenen Inhalte in externe Tools eingeben","Entscheidungen und Verantwortlichkeiten vor Weitergabe prüfen","Bei vertraulichen Meetings nur freigegebene Tools nutzen"],
-  whenNot:"Wenn keine klaren Notizen vorliegen oder sensible Entscheidungen ohne Prüfung übernommen werden sollen.",
-  qualityCheck:["Sind alle Entscheidungen korrekt?","Sind Verantwortliche eindeutig?","Fehlen wichtige Punkte?"],
-  risk:"Transkripte können Fehler enthalten. Entscheidungen und Verantwortlichkeiten immer prüfen."},
-
- // ── Analyse & Controlling ──────────────────────────────────────────────────
- {id:"controlling-comment",title:"Controlling-Kommentar vorbereiten",icon:"🔍",col:C.magenta,
-  category:"Analyse & Controlling",dept:["controlling","management"],personas:["Controlling","Führungskräfte"],level:"Fortgeschritten",
-  tools:["Microsoft Copilot","ChatGPT","Excel","Power BI"],
-  toolRecommendation:"Excel oder Power BI sind sinnvoll für Zahlenbasis und Visualisierung. ChatGPT oder Copilot eignen sich für die sprachliche Kommentierung, sofern Datenfreigaben beachtet werden.",
-  problem:"Zahlen liegen vor, aber eine klare, managementgerechte Kommentierung ist zeitaufwendig.",
-  solution:"KI erstellt aus Kennzahlen und Kontext einen strukturierten Kommentar mit Beobachtung, Ursachen, Risiken und Maßnahmen.",
-  benefit:"Schnellere Berichtserstellung, konsistentere Qualität und bessere Verständlichkeit.",
-  example:"Aus Ist, Plan, Vorjahr und Kommentaren entsteht ein sachlicher Management-Kommentar – Aufwand von 4 Std auf 20 Min.",
-  kpis:["Kommentierungszeit −85%","Qualität und Konsistenz verbessert","Frühere Berichtsfertigstellung"],
-  prompts:[
-    {label:"Controlling-Kommentar",text:"Erstelle einen sachlichen Controlling-Kommentar auf Basis der folgenden Daten.\n\nStruktur:\n1. Beobachtung: Was ist passiert?\n2. Abweichung: Gegenüber Plan / Vorjahr / Forecast\n3. Mögliche Ursachen\n4. Risiken und Chancen\n5. Empfohlene nächste Schritte\n\nWichtig:\n- Keine Ursachen erfinden\n- Unsicherheiten klar benennen\n- Managementtauglich und knapp formulieren\n\n[DATEN UND KONTEXT EINFÜGEN]"},
-    {label:"Managementkommentar (KPI)",text:"Schreibe einen Managementkommentar für den Monatsbericht. Ton: sachlich, lösungsorientiert. Kennzahlen: [KPI 1: IST vs. PLAN], [KPI 2: IST vs. PLAN]. Erkläre Abweichungen und formuliere 2 Handlungsempfehlungen. 150–200 Wörter."},
-    {label:"Executive Variance Summary",text:"Erstelle eine Executive Summary der wichtigsten Abweichungen für den Vorstandsbericht. Max. 3 Kernaussagen. Je Aussage: was, warum, welche Maßnahme. Klar und ohne Fachbegriffe.\n\n[DATEN]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Interne Finanzdaten nur in freigegebenen Tools verarbeiten","Zahlen, Abweichungen und Ursachen fachlich validieren","Annahmen und Unsicherheiten klar kennzeichnen"],
-  whenNot:"Bei unvollständigen Daten oder finalen Vorstandsentscheidungen ohne Prüfung.",
-  qualityCheck:["Stimmen die Zahlen?","Sind Ursachen belegt?","Sind Risiken klar benannt?"],
-  risk:"KI darf keine nicht belegten Ursachen behaupten. Fachliche Validierung bleibt Pflicht."},
-
- {id:"variance-analysis",title:"Abweichungsanalyse strukturieren",icon:"📉",col:C.violet,
-  category:"Analyse & Controlling",dept:["controlling"],personas:["Controlling","Führungskräfte"],level:"Fortgeschritten",
-  tools:["Excel","Power BI","ChatGPT","Microsoft Copilot"],
-  toolRecommendation:"Excel und Power BI sind geeignet für Datenanalyse und Drill-down. ChatGPT oder Copilot unterstützen bei Hypothesen, Strukturierung und Management-Kommentar.",
-  problem:"Abweichungen sind sichtbar, aber Ursachenanalyse und Bewertung brauchen Zeit.",
-  solution:"KI hilft bei der strukturierten Hypothesenbildung und trennt Beobachtung, mögliche Ursachen und Maßnahmen.",
-  benefit:"Schneller Einstieg in die Analyse und bessere Diskussionsgrundlage.",
-  example:"Eine Kostenabweichung wird in mögliche Mengen-, Preis-, Timing- und Sondereffekte gegliedert.",
-  prompts:[
-    {label:"Abweichung analysieren",text:"Analysiere die folgende Abweichung strukturiert.\n\nBitte trenne:\n1. Beobachtbare Fakten\n2. Mögliche Ursachen als Hypothesen\n3. Benötigte Zusatzinformationen\n4. Risiken für Forecast / Budget\n5. Empfohlene nächste Analyseschritte\n\nFormuliere vorsichtig: keine sicheren Aussagen ohne Datenbasis.\n\n[DATEN UND KONTEXT EINFÜGEN]"},
-    {label:"Kostenstellen-Analyse",text:"Analysiere diese Kostenstellendaten und identifiziere die Top 5 Abweichungen. Für jede: Betrag, Prozent, wahrscheinliche Ursache, Handlungsempfehlung:\n\n[DATEN]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Fakten und Hypothesen strikt trennen","Keine Ursachen ohne Datenbasis als sicher darstellen","Interne Daten nur in freigegebenen Tools nutzen"],
-  whenNot:"Wenn keine ausreichende Datenbasis vorhanden ist.",
-  qualityCheck:["Sind Fakten und Hypothesen getrennt?","Sind alle Treiber betrachtet?"],
-  risk:"KI kann Zusammenhänge vermuten, die fachlich nicht stimmen. Hypothesen müssen geprüft werden."},
-
- {id:"kpi-drivers",title:"KPI-Treiber analysieren",icon:"💬",col:C.green,
-  category:"Analyse & Controlling",dept:["controlling","management"],personas:["Controlling","Führungskräfte"],level:"Fortgeschritten",
-  tools:["Power BI","Excel","ChatGPT","Python"],
-  toolRecommendation:"Power BI und Excel sind für Datenexploration geeignet. ChatGPT unterstützt bei Hypothesen und Kommunikation. Python ist sinnvoll bei statistischer Modellierung.",
-  problem:"KPI-Veränderungen werden beobachtet, aber mögliche Einflussfaktoren sind nicht transparent.",
-  solution:"KI strukturiert potenzielle Treiber und schlägt Analysefragen vor.",
-  benefit:"Bessere Ursachenklärung und gezieltere Folgeanalysen.",
-  example:"Für eine Margenabweichung werden Preis-, Mengen-, Mix-, Kosten- und Timingeffekte getrennt.",
-  prompts:[
-    {label:"KPI-Treiber strukturieren",text:"Strukturiere mögliche Treiber für die folgende KPI-Veränderung.\n\nKPI: [KPI einfügen]\nVeränderung: [Beschreibung einfügen]\nKontext: [Kontext einfügen]\n\nErstelle:\n1. mögliche Treiberkategorien\n2. konkrete Hypothesen\n3. notwendige Daten zur Prüfung\n4. mögliche Management-Fragen\n5. nächste Analyseschritte\n\nBitte keine Ursachen als gesichert darstellen."},
-    {label:"KPI-Frage in SQL",text:"Ich möchte beantworten: [FRAGE]. Verfügbare Tabellen: [TABELLEN]. Welche Datenpunkte brauche ich, welche Aggregationen sind sinnvoll und welcher Chart-Typ? Schreibe auch die SQL-Abfrage."},
-  ],
-  gov:"🟡 Eingeschränkt",govDerived:true,
-  govHints:["Interne Kennzahlen nur in freigegebenen Tools verarbeiten","Ursachen als Hypothesen kennzeichnen"],
-  risk:"KI kann Treiber vorschlagen, aber nicht ohne Daten beweisen."},
-
- {id:"forecast-quality",title:"Forecast-Qualität bewerten",icon:"🔮",col:C.teal,
-  category:"Analyse & Controlling",dept:["controlling","management"],personas:["Controlling","Führungskräfte"],level:"Fortgeschritten",time:"2–4 Wochen",
-  tools:["Excel","Power BI","Python","ChatGPT"],
-  toolRecommendation:"Excel und Power BI eignen sich für Kennzahlen und Visualisierung. Python ist sinnvoll für systematische Fehlermaße. ChatGPT hilft bei Einordnung und Management-Kommentar.",
-  problem:"Forecasts werden erstellt, aber ihre Qualität wird nicht konsequent bewertet.",
-  solution:"KI unterstützt bei der Strukturierung von Forecast-Fehlern, Ursachen und Verbesserungsmaßnahmen.",
-  benefit:"Bessere Planung, transparentere Annahmen und gezieltere Forecast-Verbesserung.",
-  example:"Forecast-Abweichungen werden nach Bereichen, Zeiträumen und Fehlerquellen analysiert. Forecast-Fehler sinkt typischerweise deutlich.",
-  kpis:["Forecast-Fehler −50–60%","Planungsaufwand −40%","Bessere Ressourcenallokation"],
-  prompts:[
-    {label:"Forecast bewerten",text:"Bewerte die Qualität des folgenden Forecasts.\n\nDaten:\n[Forecast, Ist, Zeitraum, Kontext einfügen]\n\nErstelle:\n1. wichtigste Abweichungen\n2. mögliche Ursachen\n3. Muster nach Zeitraum / Einheit / Kategorie\n4. Empfehlungen zur Verbesserung\n5. Fragen für Forecast-Review\n\nBitte zwischen Fakten und Hypothesen unterscheiden."},
-    {label:"Szenario-Planung",text:"Entwickle 3 Planungsszenarien für [OBJEKT] im Zeitraum [ZEITRAUM]:\n- Optimistisch: Annahmen [A1, A2]\n- Basis: Annahmen [B1, B2]\n- Pessimistisch: Annahmen [C1, C2]\nJe Szenario: Kennzahlenauswirkung, Break-even, Frühindikatoren."},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Forecast-Daten nur in freigegebenen Tools verarbeiten","Fehlermaße und Annahmen nachvollziehbar dokumentieren","Managementaussagen vor Weitergabe prüfen"],
-  risk:"Ohne saubere Ist- und Forecast-Daten ist keine belastbare Bewertung möglich."},
-
- {id:"invoice-processing",title:"Automatisierte Belegverarbeitung",icon:"🗂️",col:C.violet,
-  category:"Automatisierung & Prozesse",dept:["controlling"],personas:["Controlling"],level:"Mittel",time:"1–2 Wochen",
-  tools:["Claude API","SAP","DATEV","Azure Document Intelligence"],
-  toolRecommendation:"OCR- und Dokumenten-KI in freigegebenen, integrierten Systemen nutzen. Finanzdaten ausschließlich in geprüften Umgebungen verarbeiten.",
-  problem:"Eingangsrechnungen müssen manuell gelesen, kontiert und auf Dubletten geprüft werden.",
-  solution:"KI liest, klassifiziert und kontiert Belege automatisch – mit Plausibilitäts- und Anomalieprüfung.",
-  benefit:"Buchungsaufwand um bis zu 80% reduziert.",
-  example:"500 Eingangsrechnungen/Monat: KI liest alle Belege, schlägt Kontierung vor (92% Trefferquote), erkennt 3 Duplikate. Buchhalter prüft nur Ausnahmen – 8 Std. auf 1,5 Std.",
-  details:["OCR + KI für automatische Rechnungserkennung","Regelbasierte und KI-gestützte Kontierungsvorschläge","Duplikatserkennung und Anomalie-Warnungen","3-Way-Match mit Bestellungen und Lieferscheinen"],
-  kpis:["Verarbeitungszeit −80%","Fehlerquote −95%","Automatisierungsgrad >90%"],
-  prompts:[
-    {label:"Beleginfos extrahieren",text:"Extrahiere aus diesem Rechnungstext folgende Informationen als JSON:\n- Rechnungssteller (Name, Adresse, USt-ID)\n- Rechnungsnummer und -datum\n- Leistungsbeschreibung\n- Netto, MwSt., Brutto\n- Zahlungsziel\n\n[RECHNUNGSTEXT]"},
-    {label:"Kontierungsvorschlag",text:"Schlage für diese Rechnung eine Kontierung nach SKR03/04 vor und begründe die Kontenauswahl:\n\nLieferant: [NAME], Leistung: [BESCHREIBUNG], Betrag: [BETRAG] netto"},
-  ],
-  gov:"🔴 Kritisch",govDerived:true,
-  govHints:["Finanz- und Lieferantendaten nur in freigegebenen, integrierten Systemen verarbeiten","Automatische Kontierung stichprobenhaft prüfen","Berechtigungen und Datenflüsse klären"],
-  whenNot:"Ohne geprüfte Systemintegration und ohne definierten Kontrollprozess.",
-  qualityCheck:["Stimmt die extrahierte Information?","Ist die Kontierung plausibel?","Werden Ausnahmen sauber eskaliert?"],
-  risk:"Automatisch erzeugte Buchungen müssen kontrolliert werden. Verantwortung bleibt beim Rechnungswesen."},
-
- // ── Management & Strategie ──────────────────────────────────────────────────
- {id:"decision-brief",title:"Entscheidungsvorlage strukturieren",icon:"🎯",col:C.magenta,
-  category:"Management & Strategie",dept:["management"],personas:["Führungskräfte"],level:"Management",time:"1–2 Tage",
-  tools:["ChatGPT","Claude","Microsoft Copilot"],
-  toolRecommendation:"Claude oder ChatGPT sind stark bei langen Texten und Strukturierung. Copilot ist geeignet, wenn Inhalte bereits in M365-Dokumenten vorliegen.",
-  problem:"Informationen sind vorhanden, aber nicht entscheidungsfähig aufbereitet.",
-  solution:"KI strukturiert Ausgangslage, Optionen, Chancen, Risiken, Annahmen und Empfehlung.",
-  benefit:"Bessere Entscheidungsqualität und schnellere Vorbereitung – Vorlagen in Stunden statt Tagen.",
-  example:"Eigenfertigung vs. Outsourcing: KI erstellt eine Vorlage mit Optionenvergleich, Risikomatrix und Empfehlung – statt mehrerer Tage Aufwand.",
-  kpis:["Analysezeit −70%","Entscheidungsqualität besser","Weniger externe Beratung nötig"],
-  prompts:[
-    {label:"Entscheidungsvorlage",text:"Strukturiere die folgende Entscheidungsgrundlage.\n\nErstelle:\n1. Ausgangssituation\n2. Ziel der Entscheidung\n3. Optionen\n4. Chancen und Risiken je Option\n5. Annahmen und offene Fragen\n6. Empfehlung mit Begründung\n7. Nächste Schritte\n\nFormuliere sachlich, klar und managementgerecht.\n\n[INFORMATIONEN EINFÜGEN]"},
-    {label:"SWOT-Analyse",text:"Erstelle eine detaillierte SWOT-Analyse für: [BESCHREIBUNG]. Berücksichtige Marktumfeld [BRANCHE], Unternehmensgröße [GRÖSSE], Zeithorizont [ZEITRAUM]. Schließe mit einer strategischen Empfehlung ab."},
-  ],
-  gov:"🔴 Kritisch",
-  govHints:["KI-Empfehlungen nicht ungeprüft übernehmen","Strategische und vertrauliche Inhalte nur in freigegebenen Umgebungen verarbeiten","Entscheidungsvorlagen vor Nutzung fachlich und organisatorisch validieren"],
-  whenNot:"Wenn Entscheidung bereits feststeht oder politische Sensibilität hoch ist.",
-  qualityCheck:["Sind alle Optionen dargestellt?","Sind Risiken vollständig?","Ist Empfehlung begründet?"],
-  risk:"Die Empfehlung ist nur ein Vorschlag. Entscheidung und Verantwortung bleiben beim Menschen."},
-
- {id:"scenario-planning",title:"Szenarien entwickeln",icon:"🗺️",col:C.violet,
-  category:"Management & Strategie",dept:["management","controlling"],personas:["Führungskräfte","Controlling"],level:"Fortgeschritten",
-  tools:["ChatGPT","Claude","Excel","Power BI"],
-  toolRecommendation:"ChatGPT oder Claude helfen bei Struktur und Annahmenlogik. Excel und Power BI sind geeignet, um quantitative Szenarien zu rechnen und zu visualisieren.",
-  problem:"Bei Unsicherheit fehlen oft klar beschriebene Szenarien und deren Konsequenzen.",
-  solution:"KI entwickelt aus Annahmen mehrere Szenarien inklusive Wirkung, Risiken und Frühindikatoren.",
-  benefit:"Bessere Vorbereitung auf Unsicherheit und transparentere Annahmen.",
-  example:"Base, Best und Worst Case für Kosten- oder Umsatzentwicklung.",
-  prompts:[
-    {label:"3 Szenarien",text:"Entwickle auf Basis der folgenden Informationen drei Szenarien.\n\nSzenarien:\n1. Base Case\n2. Upside Case\n3. Downside Case\n\nJe Szenario:\n- zentrale Annahmen\n- erwartete Auswirkungen\n- Risiken\n- Frühindikatoren\n- empfohlene Maßnahmen\n\nKennzeichne Annahmen ausdrücklich als Annahmen.\n\n[INFORMATIONEN EINFÜGEN]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Szenarien als Annahmen kennzeichnen","Keine Prognose-Sicherheit suggerieren","Bei strategischen Daten nur freigegebene Tools verwenden"],
-  risk:"Szenarien sind Denkmodelle, keine Prognosen. Annahmen müssen dokumentiert werden."},
-
- {id:"risk-register",title:"Risikoliste für Projekt oder Bereich erstellen",icon:"⚠️",col:C.magenta,
-  category:"Management & Strategie",dept:["management","operations"],personas:["Projektteams","Führungskräfte"],level:"Einsteiger bis Management",
-  tools:["ChatGPT","Claude","Excel"],
-  toolRecommendation:"ChatGPT oder Claude eignen sich für Risikoidentifikation und Struktur. Excel oder Planner/Projekttools eignen sich zur Nachverfolgung.",
-  problem:"Risiken werden häufig informell diskutiert, aber nicht sauber dokumentiert.",
-  solution:"KI erstellt eine strukturierte Risikoliste mit Eintrittswahrscheinlichkeit, Auswirkung und Gegenmaßnahmen.",
-  benefit:"Bessere Transparenz und systematischere Steuerung.",
-  example:"Aus einer Projektbeschreibung entsteht ein Risikoregister mit Maßnahmen.",
-  prompts:[
-    {label:"Risikoliste erstellen",text:"Erstelle aus der folgenden Beschreibung eine strukturierte Risikoliste.\n\nFür jedes Risiko:\n1. Beschreibung\n2. Ursache\n3. mögliche Auswirkung\n4. Eintrittswahrscheinlichkeit (niedrig/mittel/hoch)\n5. Auswirkung (niedrig/mittel/hoch)\n6. Gegenmaßnahme\n7. Verantwortliche Rolle\n\nProjekt/Bereich:\n[BESCHREIBUNG EINFÜGEN]"},
-  ],
-  gov:"🟡 Eingeschränkt",govDerived:true,
-  govHints:["Projektinterne Inhalte nur in freigegebenen Tools verarbeiten","Bewertungen im Team validieren"],
-  risk:"Bewertungen sind erste Einschätzungen und müssen vom Team validiert werden."},
-
- {id:"stakeholder-communication",title:"Stakeholder-Kommunikation vorbereiten",icon:"📣",col:C.teal,
-  category:"Kommunikation",dept:["management"],personas:["Projektteams","Führungskräfte"],level:"Fortgeschritten",
-  tools:["ChatGPT","Microsoft Copilot","Claude"],
-  toolRecommendation:"ChatGPT oder Claude sind gut für Varianten und Zielgruppenlogik. Copilot passt, wenn Vorlagen oder M365-Kontext genutzt werden.",
-  problem:"Unterschiedliche Stakeholder benötigen unterschiedliche Informationen und Tonalitäten.",
-  solution:"KI erstellt zielgruppenspezifische Kernbotschaften, E-Mails oder Briefings.",
-  benefit:"Klarere Kommunikation und weniger Missverständnisse.",
-  example:"Für Vorstand, Projektteam und Fachbereich werden unterschiedliche Botschaften erstellt.",
-  prompts:[
-    {label:"Stakeholder-Botschaften",text:"Bereite eine Stakeholder-Kommunikation vor.\n\nThema: [Thema]\nZielgruppen: [Stakeholder]\nZiel der Kommunikation: [Ziel]\n\nErstelle je Zielgruppe:\n1. Kernbotschaft\n2. relevante Details\n3. mögliche Einwände\n4. empfohlene Tonalität\n5. Textentwurf\n\nBitte sachlich und adressatengerecht formulieren."},
-    {label:"Stakeholder-Update",text:"Schreibe ein Stakeholder-Update für [Zielgruppe] zur aktuellen Geschäftslage. Kerninformationen: [INFO 1, INFO 2]. Ton: [zuversichtlich/transparent]. Hebe 2 Erfolgspunkte und 1 Herausforderung hervor."},
-  ],
-  gov:"🟡 Eingeschränkt",govDerived:true,
-  govHints:["Vertrauliche Geschäftsinformationen nur in freigegebenen Tools verarbeiten","Politische Sensibilität menschlich prüfen"],
-  risk:"Stakeholder-Kontext und politische Sensibilität müssen menschlich geprüft werden."},
-
- {id:"presentation-storyline",title:"Präsentations-Storyline entwickeln",icon:"🎬",col:C.violet,
-  category:"Präsentation & Aufbereitung",dept:["all","marketing","management"],personas:["Projektteams","Führungskräfte"],level:"Fortgeschritten",
-  tools:["PowerPoint Copilot","Gamma","ChatGPT","Canva"],
-  toolRecommendation:"ChatGPT eignet sich für Storyline und Argumentationslogik. PowerPoint Copilot, Gamma oder Canva sind geeignet für visuelle Umsetzung und Entwürfe.",
-  problem:"Inhalte sind vorhanden, aber die Präsentation hat noch keine klare Dramaturgie.",
-  solution:"KI entwickelt eine logische Struktur mit Kernbotschaft, Folienfolge und Sprecherhinweisen.",
-  benefit:"Schnellerer Aufbau überzeugender Präsentationen.",
-  example:"Aus Stichpunkten wird eine Management-Präsentation mit klarer Storyline.",
-  prompts:[
-    {label:"Storyline entwickeln",text:"Entwickle eine Storyline für eine Präsentation.\n\nZielgruppe: [Zielgruppe einfügen]\nZiel der Präsentation: [Ziel einfügen]\nVorhandene Inhalte: [Inhalte einfügen]\n\nErstelle:\n1. Kernbotschaft\n2. empfohlene Folienstruktur\n3. Aussage je Folie\n4. mögliche Visualisierung\n5. Sprecherhinweise\n\nFormuliere klar und adressatengerecht."},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",govDerived:true,
-  govHints:["Keine vertraulichen Inhalte in nicht freigegebene Tools eingeben","Fachliche und visuelle Inhalte prüfen"],
-  risk:"Präsentationsinhalte fachlich und visuell prüfen. KI liefert Struktur, nicht automatisch finale Qualität."},
-
- // ── Programmierung & Daten ──────────────────────────────────────────────────
- {id:"code-helper",title:"Code verstehen, prüfen & debuggen",icon:"⌨️",col:C.magenta,
-  category:"Programmierung & Daten",dept:["it","controlling"],personas:["KI-Verantwortliche"],level:"Einsteiger bis Fortgeschritten",time:"Sofort",
-  tools:["GitHub Copilot","Cursor","ChatGPT","Claude","Python"],
-  toolRecommendation:"GitHub Copilot ist geeignet im Entwicklungsumfeld. ChatGPT oder Claude helfen bei Erklärung, Review und Tests. Python bleibt das Ausführungs- und Analysewerkzeug.",
-  problem:"Skripte oder fremder Code sind schwer nachvollziehbar oder müssen überprüft werden.",
-  solution:"KI erklärt Code, findet mögliche Fehler und schlägt Verbesserungen vor.",
-  benefit:"Schnelleres Verständnis und höhere Qualität – Entwicklungsgeschwindigkeit +30–50%.",
-  example:"Ein Python- oder Excel-Auswertungsschritt wird verständlich erklärt; Legacy-Code wird in Minuten erfasst.",
-  details:["Boilerplate-Code generieren","Legacy-Code ohne Dokumentation erklären","Bug-Suche: Stack Traces analysieren","Refactoring nach Clean Code","Code zwischen Sprachen konvertieren"],
-  kpis:["Code-Produktivität +35%","Bug-Behebungszeit −50%","Onboarding 3× schneller"],
-  prompts:[
-    {label:"Code erklären & prüfen",text:"Erkläre den folgenden Code oder die folgende Formel.\n\nBitte:\n1. Zweck erklären\n2. Schritt für Schritt beschreiben\n3. mögliche Fehlerquellen nennen\n4. Verbesserungsvorschläge machen\n5. Testfälle vorschlagen\n\nCode/Formel:\n[CODE EINFÜGEN]"},
-    {label:"Code generieren",text:"Schreibe [SPRACHE]-Code für: [BESCHREIBUNG]. Anforderungen: [ANFORDERUNGEN]. Code soll: sauber und kommentiert sein, Fehlerbehandlung enthalten, Unit-testbar sein. Erkläre danach die wichtigsten Design-Entscheidungen."},
-    {label:"Bug finden",text:"Dieser Code wirft: [FEHLERMELDUNG]. Identifiziere die Ursache und schlage eine Korrektur vor. Wie wird der Bug in Zukunft vermieden?\n\n[CODE]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Keinen vertraulichen Code in nicht freigegebene Tools eingeben","KI-generierten Code testen und reviewen","Sicherheits- und Datenschutzanforderungen prüfen"],
-  risk:"KI-generierter Code muss getestet werden. Sicherheits- und Datenschutzanforderungen beachten."},
-
- {id:"excel-formula",title:"Excel-Formeln verstehen und verbessern",icon:"🧮",col:C.green,
-  category:"Programmierung & Daten",dept:["controlling"],personas:["Controlling"],level:"Einsteiger bis Fortgeschritten",
-  tools:["Microsoft Copilot","ChatGPT","Excel"],
-  toolRecommendation:"Excel ist das zentrale Werkzeug für Umsetzung und Prüfung. Copilot kann direkt in Excel unterstützen; ChatGPT ist hilfreich für Erklärung und Varianten.",
-  problem:"Komplexe Formeln sind schwer nachvollziehbar oder fehleranfällig.",
-  solution:"KI erklärt Formeln, schlägt Vereinfachungen vor und hilft bei Fehlersuche.",
-  benefit:"Besseres Verständnis, weniger Fehler und schnellere Wartung von Tabellen.",
-  example:"Eine verschachtelte WENN/SVERWEIS/XVERWEIS-Formel wird erklärt und vereinfacht.",
-  prompts:[
-    {label:"Formel erklären & verbessern",text:"Erkläre und verbessere die folgende Excel-Formel.\n\nBitte:\n1. Funktion der Formel erklären\n2. Teilbereiche Schritt für Schritt erläutern\n3. mögliche Fehlerquellen nennen\n4. robustere oder einfachere Alternative vorschlagen\n5. Beispiel zur Prüfung nennen\n\nFormel:\n[FORMEL EINFÜGEN]"},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",govDerived:true,
-  govHints:["Keine sensiblen Daten in nicht freigegebene Tools eingeben","Formelvorschläge mit Testdaten prüfen"],
-  risk:"Formelvorschläge immer mit Testdaten prüfen."},
-
- {id:"powerbi-measure",title:"Power-BI-Kennzahlen und DAX prüfen",icon:"📐",col:C.violet,
-  category:"Programmierung & Daten",dept:["controlling","it"],personas:["Controlling"],level:"Fortgeschritten",
-  tools:["Power BI","ChatGPT","Microsoft Copilot"],
-  toolRecommendation:"Power BI ist für Modell und Visualisierung maßgeblich. ChatGPT kann DAX-Logik erklären und alternative Measures vorschlagen.",
-  problem:"DAX-Measures und Datenmodelllogik sind komplex und schwer zu prüfen.",
-  solution:"KI erklärt Measures, sucht logische Schwächen und schlägt Testfälle vor.",
-  benefit:"Höhere Qualität von Reports und bessere Nachvollziehbarkeit.",
-  example:"Ein Measure für YTD, Forecast-Abweichung oder Marge wird analysiert.",
-  prompts:[
-    {label:"DAX-Measure prüfen",text:"Prüfe das folgende Power-BI-DAX-Measure.\n\nBitte:\n1. fachliche Logik erklären\n2. technische Logik erklären\n3. mögliche Fehlerquellen nennen\n4. alternative Formulierung vorschlagen\n5. Testfälle beschreiben\n\nDAX:\n[DAX EINFÜGEN]\n\nKontext:\n[Tabellen / Ziel der Kennzahl einfügen]"},
-  ],
-  gov:"🟡 Eingeschränkt",govDerived:true,
-  govHints:["Datenmodell-Kontext nur in freigegebenen Tools teilen","Measures mit Testfällen validieren"],
-  risk:"KI kennt das vollständige Datenmodell nicht automatisch. Kontext muss mitgegeben werden."},
-
- {id:"security-anomaly",title:"Security & Anomalie-Erkennung",icon:"🛡️",col:C.teal,
-  category:"Programmierung & Daten",dept:["it"],personas:["KI-Verantwortliche"],level:"Fortgeschritten",time:"3–6 Wochen",
-  tools:["Azure Sentinel","Splunk AI","Elastic Security","Darktrace"],
-  toolRecommendation:"Security-spezifische, freigegebene Plattformen einsetzen. Keine sensiblen Log- oder Personendaten in allgemeine Chat-Tools geben.",
-  problem:"Angriffe und Anomalien im Netzwerkverkehr werden oft zu spät erkannt.",
-  solution:"KI analysiert kontinuierlich Logs und Verhalten und erkennt Auffälligkeiten frühzeitig.",
-  benefit:"Angriffserkennung von Tagen auf Minuten.",
-  example:"22:30 Uhr: KI erkennt ungewöhnlichen Datenexport gleichzeitig aus zwei Ländern. Automatische Kontosperrung in Sekunden – Datenpanne verhindert.",
-  details:["Echtzeit-Analyse von Auth-Logs und Netzwerktraffic","Verhaltensanalyse (UEBA)","Automatische Incident-Klassifizierung","Threat Intelligence: Angriffsmuster abgleichen"],
-  kpis:["Mean Time to Detect −90%","False Positives −60%","Security Incidents −40%"],
-  prompts:[
-    {label:"Security-Analyse",text:"Analysiere diese Log-Einträge auf Anomalien. Identifiziere: verdächtige Muster, Angriffsvektoren, betroffene Systeme, Sofortmaßnahmen. Priorisiere nach Kritikalität:\n\n[LOG-DATEN]"},
-    {label:"Incident Response Plan",text:"Erstelle einen Incident Response Plan für: [ANGRIFFSTYP]. Phasen: Erkennung → Eindämmung → Beseitigung → Wiederherstellung. Definiere Verantwortliche, Zeitrahmen, Kommunikationsstrategie."},
-  ],
-  gov:"🔴 Kritisch",govDerived:true,
-  govHints:["Sicherheits- und Personendaten ausschließlich in freigegebenen Security-Plattformen verarbeiten","Automatisierte Reaktionen kontrolliert konfigurieren","Datenschutz und Mitbestimmung beachten"],
-  whenNot:"Mit allgemeinen Chat-Tools oder ohne freigegebene Security-Infrastruktur.",
-  qualityCheck:["Sind False Positives geprüft?","Sind Reaktionen verhältnismäßig?","Ist die Datenverarbeitung zulässig?"],
-  risk:"Automatisierte Reaktionen können Geschäftsprozesse stören. Konfiguration und Datenschutz sind kritisch."},
-
- {id:"doc-generation",title:"Dokumentation automatisch generieren",icon:"📚",col:C.green,
-  category:"Programmierung & Daten",dept:["it"],personas:["KI-Verantwortliche"],level:"Einsteiger",time:"Sofort",
-  tools:["GitHub Copilot","Claude","Confluence AI"],
-  toolRecommendation:"GitHub Copilot und Claude sind geeignet, um aus Code Dokumentation abzuleiten. Veröffentlichung in freigegebenen Wissensablagen (Confluence/SharePoint).",
-  problem:"Code und Systeme sind oft unzureichend dokumentiert.",
-  solution:"KI erstellt API-Dokumentation, READMEs und Onboarding-Guides aus vorhandenem Code.",
-  benefit:"Technische Schulden dokumentieren ohne großen Aufwand.",
-  example:"10 Jahre altes Backend ohne Doku: KI erstellt API-Doku, Architektur-Überblick und Getting-Started-Guide – 1 Tag statt 3 Wochen.",
-  details:["API-Dokumentation aus Code-Kommentaren","README-Generierung für Repositories","Architektur-Beschreibungen","Onboarding-Guides","Changelog aus Git-Commits"],
-  kpis:["Einarbeitungszeit −60%","Dokumentationsabdeckung +80%","Interne Support-Anfragen −40%"],
-  prompts:[
-    {label:"API dokumentieren",text:"Erstelle eine API-Dokumentation im OpenAPI-Format. Beinhalte: Beschreibung, Parameter (Name, Typ, Pflicht, Beschreibung), Response-Codes, Beispiel-Request/Response:\n\n[CODE/ENDPUNKT]"},
-    {label:"README erstellen",text:"Erstelle eine professionelle README.md für: [PROJEKTNAME]. Beinhalte: Beschreibung, Features, Installation, Konfiguration, Verwendungsbeispiele, Lizenz. Vorhandene Infos: [INFOS]"},
-  ],
-  gov:"🟡 Eingeschränkt",govDerived:true,
-  govHints:["Keinen vertraulichen Code in nicht freigegebene Tools eingeben","Generierte Doku fachlich gegenprüfen"],
-  risk:"Generierte Dokumentation muss auf Korrektheit und Aktualität geprüft werden."},
-
- // ── Automatisierung & Prozesse ──────────────────────────────────────────────
- {id:"process-automation",title:"Automatisierungspotenzial identifizieren",icon:"⚡",col:C.magenta,
-  category:"Automatisierung & Prozesse",dept:["operations","it"],personas:["Projektteams","KI-Verantwortliche"],level:"Fortgeschritten",time:"2–4 Wochen",
-  tools:["Power Automate","Zapier","Make","ChatGPT"],
-  toolRecommendation:"ChatGPT hilft bei Prozessanalyse und Ideengenerierung. Power Automate ist oft geeignet für M365-nahe Workflows; Zapier oder Make für tool-übergreifende Automatisierung.",
-  problem:"Wiederkehrende manuelle Aufgaben binden Zeit, aber Automatisierungspotenzial ist nicht systematisch erfasst.",
-  solution:"KI hilft, Prozessschritte, Wiederholungen, Medienbrüche und Automatisierungsoptionen zu strukturieren.",
-  benefit:"Bessere Priorisierung von Automatisierungsinitiativen – Prozesskosten −20–40%.",
-  example:"Ein monatlicher Reportingprozess wird nach manuellen Schritten und Automatisierungschancen bewertet.",
-  details:["Prozessvisualisierung aus Log-Daten","Bottleneck-Erkennung","Soll-Ist-Vergleich von Abläufen","Automatisierungspotenzial je Schritt bewerten"],
-  kpis:["Durchlaufzeit −30%","Prozesskosten −25%","Fehlerquote −40%"],
-  prompts:[
-    {label:"Prozess analysieren",text:"Analysiere den folgenden Prozess auf Automatisierungspotenzial.\n\nErstelle:\n1. Prozessschritte\n2. manuelle Tätigkeiten\n3. wiederkehrende Muster\n4. mögliche Automatisierungsideen\n5. Risiken / Abhängigkeiten\n6. Quick Wins\n7. mögliche Tools\n\nProzessbeschreibung:\n[BESCHREIBUNG EINFÜGEN]"},
-    {label:"SOP erstellen",text:"Erstelle eine Standard Operating Procedure für: [PROZESS]. Struktur: Zweck, Geltungsbereich, Verantwortlichkeiten, Schritt-für-Schritt-Anleitung, Qualitätskriterien, Ausnahmebehandlung."},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Prozess vor Automatisierung fachlich prüfen","Berechtigungen und Datenflüsse klären","Automatisierungen kontrolliert testen"],
-  risk:"Automatisierung darf nicht ungeprüft auf fehlerhafte Prozesse angewendet werden."},
-
- {id:"it-support",title:"IT-Support automatisieren",icon:"🎧",col:C.violet,
-  category:"Automatisierung & Prozesse",dept:["it"],personas:["KI-Verantwortliche"],level:"Mittel",time:"1–2 Wochen",
-  tools:["Claude API","ServiceNow","Teams Bot"],
-  toolRecommendation:"KI-Chatbot in freigegebene Service-Plattformen integrieren. Personenbezogene Ticketdaten datenschutzkonform behandeln.",
-  problem:"Häufige IT-Anfragen binden Support-Kapazität für wiederkehrende Standardfälle.",
-  solution:"Ein KI-Chatbot löst häufige Anfragen selbst, klassifiziert Tickets und eskaliert komplexe Fälle.",
-  benefit:"Ticket-Volumen manuell um bis zu 70% reduziert.",
-  example:"300 Tickets/Monat: KI-Bot löst 210 direkt (Passwort-Reset, VPN, Drucker), 60 qualifiziert er vor. Nur 30 erfordern volle manuelle Bearbeitung.",
-  details:["FAQ-Beantwortung zu Software, VPN, Passwort, Zugängen","Geführte Diagnose-Workflows","Automatische Ticket-Klassifizierung","Nahtloser Übergang zu Mensch bei komplexen Fällen"],
-  kpis:["Erstlösungsquote +40%","Lösungszeit −75%","Mitarbeiterzufriedenheit +25%"],
-  prompts:[
-    {label:"Diagnose-Workflow",text:"Erstelle einen Diagnose-Workflow für: [PROBLEM]. Als Chatbot-Ablauf: Start-Frage → Verzweigungen → Lösungsschritte → Eskalation. Berücksichtige die 5 häufigsten Ursachen."},
-    {label:"IT-FAQ erstellen",text:"Erstelle eine FAQ für: [THEMA]. Format: Frage – Antwort – Schritt-für-Schritt – Eskalationspfad. Für Nicht-IT-Nutzer, max. 3 Schritte pro Lösung."},
-  ],
-  gov:"🟡 Eingeschränkt",govDerived:true,
-  govHints:["Personenbezogene Ticketdaten datenschutzkonform behandeln","Bot-Antworten regelmäßig auf Qualität prüfen","Klare Eskalation zu Menschen sicherstellen"],
-  risk:"Falsche Bot-Antworten können Nutzer fehlleiten. Qualität und Eskalationspfade laufend prüfen."},
-
- // ── Wissensmanagement ──────────────────────────────────────────────────────
- {id:"knowledge-base",title:"Wissensartikel oder FAQ erstellen",icon:"📘",col:C.teal,
-  category:"Wissensmanagement",dept:["all","operations"],personas:["Mitarbeitende","Projektteams"],level:"Einsteiger bis Fortgeschritten",
-  tools:["ChatGPT","Claude","Microsoft Copilot","Confluence/SharePoint"],
-  toolRecommendation:"ChatGPT oder Claude helfen beim Strukturieren. Confluence oder SharePoint sind geeignet für Veröffentlichung und Pflege.",
-  problem:"Wissen liegt verstreut in Mails, Dokumenten und Köpfen.",
-  solution:"KI strukturiert Inhalte in FAQ, Schritt-für-Schritt-Anleitungen oder Wissensartikel.",
-  benefit:"Bessere Wiederverwendbarkeit und schnellere Einarbeitung.",
-  example:"Aus mehreren Dokumenten entsteht ein FAQ mit klaren Antworten.",
-  prompts:[
-    {label:"Wissensartikel erstellen",text:"Erstelle aus den folgenden Informationen einen Wissensartikel.\n\nStruktur:\n1. Kurzbeschreibung\n2. Zielgruppe\n3. Wann relevant?\n4. Schritt-für-Schritt-Anleitung\n5. Häufige Fragen\n6. typische Fehler\n7. weiterführende Hinweise\n\nInformationen:\n[TEXTE EINFÜGEN]"},
-  ],
-  gov:"🟡 Eingeschränkt",
-  govHints:["Fachliche Freigabe vor Veröffentlichung sicherstellen","Aktualität und Verantwortlichkeit klären","Keine vertraulichen Inhalte unkontrolliert veröffentlichen"],
-  risk:"Wissensartikel müssen fachlich freigegeben und aktuell gehalten werden."},
-
- {id:"chatbot-factory-documents",title:"Dokumentenbasierter ChatBot / ChatBot-Factory",icon:"🤖",col:C.magenta,
-  category:"Wissensmanagement",dept:["all","it"],personas:["KI-Verantwortliche","Projektteams"],level:"Fortgeschritten",
-  tools:["ChatBot-Factory","Microsoft Copilot","Azure AI Search","SharePoint/Confluence"],
-  toolRecommendation:"Eine ChatBot-Factory ist besonders geeignet, wenn Wissen aus definierten Dokumentensammlungen gezielt abrufbar sein soll. SharePoint/Confluence liefern die Dokumentbasis. Für produktive Nutzung sind Zugriffskonzepte, Aktualisierung und Quellenanzeige wichtig.",
-  problem:"Wichtige Informationen liegen in Dokumenten, Projektablagen und Richtlinien, sind aber schwer auffindbar. Klassische Suche liefert oft zu viele Treffer, generische Internetrecherche hilft bei internem Wissen nicht.",
-  solution:"Eine dokumentenbasierte ChatBot-Lösung bündelt ausgewählte Dokumente. Nutzende stellen Fragen und erhalten Antworten auf Basis dieser Sammlung – idealerweise mit Quellenverweis und Eingrenzung auf freigegebene Inhalte.",
-  benefit:"Schnellerer Zugriff auf internes Wissen, weniger Suchaufwand, konsistentere Antworten.",
-  example:"Ein Bereich sammelt Richtlinien, Prozessbeschreibungen und FAQ. Mitarbeitende fragen: „Welche Regel gilt für Forecast-Kommentare?“ und erhalten eine Antwort auf Basis der hinterlegten Dokumente.",
-  prompts:[
-    {label:"Dokumenten-ChatBot-Prompt",text:"Du bist ein Assistenz-ChatBot für eine definierte Dokumentensammlung.\n\nBeantworte die folgende Frage ausschließlich auf Basis der bereitgestellten Dokumente.\n\nRegeln:\n1. Nenne die relevante Antwort klar und präzise.\n2. Verweise auf die passende Quelle oder das Dokument, falls verfügbar.\n3. Wenn die Antwort nicht in den Dokumenten enthalten ist, sage das ausdrücklich.\n4. Erfinde keine Informationen.\n5. Formuliere bei Unsicherheit Rückfragen oder nenne, welche Information fehlt.\n\nFrage:\n[FRAGE EINFÜGEN]\n\nDokumentenkontext:\n[relevante Dokumente / Auszüge / Quellen einfügen]"},
-  ],
-  gov:"🔴 Kritisch",
-  govHints:["Nur freigegebene Dokumente einbinden","Zugriffsrechte und Berechtigungen sauber abbilden","Quellenanzeige und Aktualität sicherstellen","Fachliche Verantwortung für Inhalte definieren"],
-  whenNot:"Wenn Dokumente unstrukturiert, veraltet oder fachlich nicht gepflegt sind, oder ohne geklärte Zugriffsrechte bzw. Quellenanzeige.",
-  qualityCheck:["Sind die Quellen aktuell?","Sind Zugriffsrechte korrekt abgebildet?","Wird die Quelle der Antwort angezeigt?","Gibt es einen Pflegeprozess?","Ist fachliche Verantwortung definiert?"],
-  risk:"Die Qualität hängt stark von Dokumentenauswahl, Aktualität, Zugriffsrechten und Quellenanzeige ab. Für produktive Nutzung sind Berechtigungen, Versionierung und fachliche Verantwortung zu klären."},
-
- // ── Produktivität & Lernen ──────────────────────────────────────────────────
- {id:"learning-plan",title:"Individuellen Lernplan erstellen",icon:"🎓",col:C.green,
-  category:"Produktivität & Lernen",dept:["all","hr"],personas:["Mitarbeitende","KI-Verantwortliche"],level:"Einsteiger",
-  tools:["ChatGPT","Microsoft Copilot","Claude"],
-  toolRecommendation:"ChatGPT, Copilot oder Claude eignen sich gut für individuelle Lernpfade und Übungen. Interne Lernplattformen sollten für verbindliche Schulungen genutzt werden.",
-  problem:"Mitarbeitende wissen oft nicht, wie sie sinnvoll in KI einsteigen sollen.",
-  solution:"KI erstellt einen Lernpfad abhängig von Rolle, Vorwissen und Aufgaben.",
-  benefit:"Schnellerer Einstieg und höhere Akzeptanz.",
-  example:"Für eine Controlling-Rolle entsteht ein 4-Wochen-Lernplan mit Übungen.",
-  prompts:[
-    {label:"Lernplan erstellen",text:"Erstelle einen individuellen Lernplan zum Thema KI.\n\nRolle: [Rolle einfügen]\nVorwissen: [Einsteiger/Fortgeschritten]\nZiele: [Ziele einfügen]\nZeitbudget pro Woche: [Zeit einfügen]\n\nErstelle:\n1. Lernziele\n2. Wochenplan\n3. praktische Übungen\n4. empfohlene Tools\n5. Erfolgskriterien"},
-  ],
-  gov:"🟢 Unkritisch",govDerived:true,
-  govHints:["Lernplan an interne Tools und Richtlinien anpassen"],
-  risk:"Lernplan an interne Tools und Richtlinien anpassen."},
-
- {id:"training-material",title:"Schulungsunterlage erstellen",icon:"🧑‍🏫",col:C.violet,
-  category:"Produktivität & Lernen",dept:["hr"],personas:["KI-Verantwortliche"],level:"Fortgeschritten",
-  tools:["ChatGPT","Claude","PowerPoint Copilot","Canva"],
-  toolRecommendation:"ChatGPT oder Claude sind gut für Lernlogik und Übungen. PowerPoint Copilot oder Canva unterstützen bei der visuellen Aufbereitung.",
-  problem:"Schulungen brauchen klare Struktur, verständliche Beispiele und Übungen.",
-  solution:"KI erstellt Lernziele, Agenda, Übungsaufgaben und verständliche Erklärtexte.",
-  benefit:"Schnellere Erstellung konsistenter Schulungsunterlagen.",
-  example:"Aus einem Thema entsteht ein 60-Minuten-Workshop mit Übungen.",
-  prompts:[
-    {label:"Schulungsunterlage",text:"Erstelle eine Schulungsunterlage zu folgendem Thema.\n\nThema: [Thema]\nZielgruppe: [Zielgruppe]\nDauer: [Dauer]\nVorwissen: [Vorwissen]\n\nErstelle:\n1. Lernziele\n2. Agenda\n3. Erklärabschnitte\n4. praktische Übungen\n5. Reflexionsfragen\n6. kurze Abschlussprüfung\n\nBitte verständlich und praxisnah formulieren."},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",govDerived:true,
-  govHints:["Schulungsinhalte an interne Richtlinien und Tools anpassen","Fachliche Korrektheit prüfen"],
-  risk:"Schulungsinhalte müssen an interne Richtlinien und Tools angepasst werden."},
-
- {id:"quality-check",title:"Qualitätscheck für Dokumente",icon:"✅",col:C.magenta,
-  category:"Produktivität & Lernen",dept:["all"],personas:["Mitarbeitende","Projektteams","Führungskräfte"],level:"Einsteiger bis Fortgeschritten",
-  tools:["ChatGPT","Microsoft Copilot","Claude"],
-  toolRecommendation:"ChatGPT oder Claude eignen sich für kritisches Feedback. Copilot ist gut bei Dokumenten in Word oder PowerPoint.",
-  problem:"Dokumente sind fertig, aber Struktur, Klarheit oder Zielgruppenbezug sind noch nicht geprüft.",
-  solution:"KI prüft Dokumente anhand definierter Kriterien und schlägt Verbesserungen vor.",
-  benefit:"Bessere Qualität vor Versand oder Präsentation.",
-  example:"Eine Entscheidungsvorlage wird auf Klarheit, Risiken und offene Fragen geprüft.",
-  prompts:[
-    {label:"Qualitätscheck",text:"Führe einen Qualitätscheck für das folgende Dokument durch.\n\nPrüfkriterien:\n1. klare Zielsetzung\n2. Verständlichkeit\n3. logische Struktur\n4. fehlende Informationen\n5. Risiken / offene Fragen\n6. Zielgruppenpassung\n7. konkrete Verbesserungsvorschläge\n\nDokument:\n[TEXT EINFÜGEN]"},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",govDerived:true,
-  govHints:["Keine vertraulichen Inhalte in nicht freigegebene Tools eingeben"],
-  risk:"KI-Feedback ist ein Review-Vorschlag, keine Freigabe."},
-
- {id:"recruiting",title:"Recruiting & Bewerbermanagement",icon:"🔎",col:C.magenta,
-  category:"Produktivität & Lernen",dept:["hr"],personas:["Mitarbeitende"],level:"Einsteiger",time:"Sofort",
-  tools:["ChatGPT","Claude","LinkedIn Recruiter AI"],
-  toolRecommendation:"Für Texte (Ausschreibungen, Leitfäden, Absagen) sind ChatGPT oder Claude gut geeignet. Bewerberdaten ausschließlich in freigegebenen, datenschutzkonformen Systemen verarbeiten.",
-  problem:"Der Recruiting-Prozess von Ausschreibung bis Onboarding ist text- und zeitintensiv.",
-  solution:"KI unterstützt bei Ausschreibungen, Interview-Leitfäden, wertschätzenden Absagen und Onboarding-Plänen.",
-  benefit:"Vorauswahl-Vorbereitung: Tage → Minuten.",
-  example:"150 Bewerbungen: KI hilft, einen strukturierten Bewertungsrahmen und priorisierte Shortlist-Kriterien zu erstellen. Die finale Bewertung bleibt bei HR.",
-  details:["Inklusive Stellenausschreibungen verfassen","Kompetenzbasierte Interview-Leitfäden generieren","Absagen wertschätzend formulieren","Onboarding-Pläne erstellen"],
-  kpis:["Time-to-Hire −30%","Shortlist-Qualität verbessert","Kandidatenzufriedenheit +20%"],
-  prompts:[
-    {label:"Stellenausschreibung",text:"Erstelle eine inklusive Stellenausschreibung für: [JOBTITEL] bei [UNTERNEHMEN]. Must-haves: [ANFORDERUNGEN]. Benefits: [BENEFITS]. Ton: [modern/konservativ]. Gendergerechte Sprache, keine diskriminierenden Formulierungen."},
-    {label:"Interview-Leitfaden",text:"Erstelle einen strukturierten Interview-Leitfaden für [JOBTITEL]. Beinhalte: Begrüßung (5 Min), Selbstvorstellung (10 Min), 5 kompetenzbasierte Fragen zu [KOMPETENZEN] mit STAR-Methode (30 Min), Kandidatenfragen. Je Frage: Ziel und Antwortindikatoren."},
-    {label:"Absage formulieren",text:"Schreibe eine wertschätzende Absage für [VORNAME], der/die sich auf [STELLE] beworben hat. Ton: respektvoll, ermutigend. Erwähne 1–2 positive Aspekte. Keine Standardfloskeln."},
-  ],
-  gov:"🔴 Kritisch",govDerived:true,
-  govHints:["Bewerberdaten (personenbezogen) nicht in externe Tools eingeben","Auswahlentscheidungen niemals allein der KI überlassen (Diskriminierungsrisiko)","Datenschutz und Mitbestimmung beachten"],
-  whenNot:"Für die eigentliche Bewertung/Auswahl von Personen durch die KI – nur zur Vorstrukturierung von Texten und Rahmen.",
-  qualityCheck:["Sind Formulierungen diskriminierungsfrei?","Werden keine personenbezogenen Daten in externe Tools gegeben?","Bleibt die Auswahlentscheidung beim Menschen?"],
-  risk:"Personenbezogene Daten und Auswahlentscheidungen sind besonders sensibel. KI nur für Textunterstützung, nicht für Bewertung einsetzen."},
-
- // ── Marketing & Vertrieb ──────────────────────────────────────────────────
- {id:"content-creation",title:"Content-Erstellung & Skalierung",icon:"✍️",col:C.magenta,
-  category:"Kommunikation",dept:["marketing"],personas:["Mitarbeitende"],level:"Einsteiger",time:"Sofort",
-  tools:["Claude","ChatGPT","Jasper","HubSpot AI"],
-  toolRecommendation:"Claude und ChatGPT sind stark bei Texten und Varianten. Marketing-Plattformen (Jasper, HubSpot AI) für Workflow und Distribution. Keine vertraulichen Inhalte in nicht freigegebene Tools.",
-  problem:"Aus einem Kernstück Content sollen viele kanalspezifische Formate entstehen – das ist aufwendig.",
-  solution:"KI transformiert einen Inhalt in dutzende kanalgerechte Formate und Varianten.",
-  benefit:"Content-Output 5–10× skalieren ohne Mehrkosten.",
-  example:"Produktstudie (12 Seiten): KI erstellt 8 LinkedIn-Posts, 1 Newsletter, 3 Blog-Artikel, 5 Ad-Texte – in 90 Minuten statt 2 Arbeitswochen.",
-  details:["Whitepaper → LinkedIn-Posts, Newsletter, Blog, Ads","Tonalität je Kanal anpassen","A/B-Test-Varianten erstellen","Content-Briefings für Agenturen"],
-  kpis:["Content-Volumen ×5","Produktionszeit −70%","Konsistenz verbessert"],
-  prompts:[
-    {label:"Content repurposen",text:"Erstelle aus diesem Content:\n1. LinkedIn-Post (800 Zeichen, Hook + CTA)\n2. Twitter/X-Thread (5 Tweets)\n3. Newsletter-Teaser (150 Wörter)\n4. Blog-Einleitung (300 Wörter)\nZielgruppe: [BESCHREIBUNG]\n\n[QUELL-CONTENT]"},
-    {label:"Ad-Texte erstellen",text:"Schreibe 3 Varianten für [PRODUKT]. Zielgruppe: [BESCHREIBUNG]. Je Variante: Headline (30 Z.), Subheadline (60 Z.), Body (90 Z.), CTA. V1: emotional, V2: faktenbasiert, V3: problemlösend."},
-  ],
-  gov:"🟢 Unkritisch bis 🟡 Eingeschränkt",govDerived:true,
-  govHints:["Keine vertraulichen Produktinformationen in nicht freigegebene Tools eingeben","Fakten, Marke und Tonalität vor Veröffentlichung prüfen","Urheber- und Bildrechte beachten"],
-  risk:"Veröffentlichte Inhalte fachlich, rechtlich und markenseitig prüfen."},
-
- {id:"lead-qualification",title:"Lead-Qualifizierung & Sales Intelligence",icon:"🤝",col:C.magenta,
-  category:"Kommunikation",dept:["sales"],personas:["Mitarbeitende"],level:"Mittel",time:"1–2 Wochen",
-  tools:["Salesforce Einstein","HubSpot AI","Clay"],
-  toolRecommendation:"CRM-integrierte KI (Salesforce Einstein, HubSpot AI) für Scoring und Pipeline. Kundendaten ausschließlich in freigegebenen, datenschutzkonformen Systemen verarbeiten.",
-  problem:"Leads müssen manuell recherchiert, bewertet und priorisiert werden.",
-  solution:"KI bewertet Leads nach definierten Kriterien und bereitet personalisierte Erstkontakte vor.",
-  benefit:"Conversion Rate +25%, Vertrieb fokussierter.",
-  example:"200 Messeleads: KI hilft, nach definierten Kriterien zu priorisieren und für die Top-Kontakte personalisierte Erstkontakt-Texte vorzubereiten.",
-  details:["Lead-Scoring nach Kriterien","Recherche zu Leads strukturieren","Personalisierte Erstkontakt-Texte","Einwandbehandlung vorbereiten"],
-  kpis:["Lead-Konversion +25%","Recherchezeit −60%","Deal-Cycle-Time −20%"],
-  prompts:[
-    {label:"Personalisierte Cold-Mail",text:"Schreibe eine Cold-Mail an [NAME, FUNKTION] bei [UNTERNEHMEN]. Aufhänger: [AKTUELLES EREIGNIS]. Kein 'Ich hoffe diese E-Mail findet Sie gut'. Max. 6 Sätze. CTA: konkreter Terminvorschlag."},
-    {label:"Einwandbehandlung",text:"Entwickle Antworten auf diese Einwände für [PRODUKT]:\n1. 'Das ist zu teuer'\n2. 'Wir haben bereits eine Lösung'\n3. 'Jetzt ist kein guter Zeitpunkt'\nJe Einwand: Verständnis zeigen, umdeuten, konkrete Antwort, nächster Schritt."},
-  ],
-  gov:"🔴 Kritisch",govDerived:true,
-  govHints:["Kunden- und Kontaktdaten (personenbezogen) nur in freigegebenen CRM-Systemen verarbeiten","Keine personenbezogenen Daten in externe Chat-Tools eingeben","Datenschutz bei Recherche und Ansprache beachten"],
-  whenNot:"Wenn personenbezogene Kundendaten in nicht freigegebene Tools gegeben werden müssten.",
-  qualityCheck:["Werden Kundendaten datenschutzkonform verarbeitet?","Sind Aussagen über Leads belegt?","Ist die Ansprache angemessen?"],
-  risk:"Kundendaten sind personenbezogen und besonders schützenswert. Verarbeitung nur in freigegebenen Systemen."},
-];
-
-// ── Persona-Kurzbeschreibungen ─────────────────────────────────────────────────
-const PERSONA_DESC = {
-  "Führungskräfte":"Strategie, Wirkung, Steuerung, Governance und Entscheidungsvorbereitung.",
-  "Mitarbeitende":"Einfache, sichere und produktive Nutzung im Arbeitsalltag.",
-  "Projektteams":"Meetings, Statusberichte, Risiken, Entscheidungen und Dokumentation.",
-  "Controlling":"Planung, Forecasting, Abweichungsanalyse, KPI-Kommentierung und Reporting.",
-  "KI-Verantwortliche":"Enablement, Governance, Tool-Orientierung, Schulung und Skalierung.",
-};
-
-// ── Tools / Maturity reference data ──────────────────────────────────────────────
-const TOOLS_LIST = [
-  {name:"Claude (Anthropic)",use:"Texte, Analyse, Code, lange Dokumente (200k Kontext)",best:"Komplexe Aufgaben, Reasoning",tier:"Generalist"},
-  {name:"ChatGPT (OpenAI)",use:"Breites Spektrum, Bilder, Code Interpreter",best:"Vielseitig, viele Integrationen",tier:"Generalist"},
-  {name:"Gemini (Google)",use:"Google-Workspace-Integration, multimodal",best:"G-Suite-Umgebungen, aktuelle Infos",tier:"Generalist"},
-  {name:"GitHub Copilot",use:"Code schreiben, debuggen, erklären – direkt in IDE",best:"Softwareentwicklung, Daily Coding",tier:"Spezialist"},
-  {name:"Cursor",use:"KI-IDE, ganze Codebase im Kontext",best:"Große Refactorings",tier:"Spezialist"},
-  {name:"Microsoft Copilot 365",use:"Word, Excel, PowerPoint, Outlook, Teams",best:"Microsoft-365-Umgebung",tier:"Spezialist"},
-  {name:"Power BI Copilot",use:"Daten per Sprache abfragen, Reports generieren",best:"Business Intelligence",tier:"Spezialist"},
-  {name:"Perplexity",use:"Recherche mit Quellenangaben, aktuelle Infos",best:"Faktencheck, Marktrecherche",tier:"Recherche"},
-  {name:"Otter.ai / Fireflies",use:"Meeting-Transkription, Protokolle, Action Items",best:"Teams, Zoom, Meet",tier:"Spezialist"},
-];
-
-const MATURITY = [
-  {level:1,name:"Experimentieren",color:C.magenta,
-   desc:"Erste Versuche mit öffentlichen KI-Tools. Einzelne Mitarbeiter nutzen ChatGPT oder Claude.",
-   signs:["Sporadische Nutzung ohne Strategie","Kein unternehmensweiter Zugang","Kein Austausch über KI-Erfahrungen"],
-   action:"Unternehmenslizenzen · KI-Policy-Entwurf · Use-Case-Sammlung · Pilotteam benennen",dauer:"1–3 Monate"},
-  {level:2,name:"Strukturieren",color:C.violet,
-   desc:"Unternehmenslizenzen vorhanden, erste Richtlinien. 2–3 Abteilungen mit definierten Pilotprojekten.",
-   signs:["Unternehmenslizenzen für KI-Tools","KI-Policy und Datenschutzregeln","Erste Schulungen durchgeführt"],
-   action:"KI-Champions · Schulungsprogramm · Use-Case-Tracking · Erfolge messen",dauer:"3–6 Monate"},
-  {level:3,name:"Skalieren",color:C.teal,
-   desc:"KI in Kernprozesse integriert. API-Nutzung. Mehrere Abteilungen produktiv.",
-   signs:["KI in Kernprozessen verankert","API-Integrationen in Systemen","Messbarer ROI dokumentiert"],
-   action:"KI-Champions-Netzwerk · Custom Applications · Integration in ERP/CRM",dauer:"6–18 Monate"},
-  {level:4,name:"Transformieren",color:C.green,
-   desc:"KI als strategischer Wettbewerbsvorteil. KI-native Prozesse, eigene Modelle möglich.",
-   signs:["KI in Unternehmensstrategie verankert","Eigene KI-Modelle und Agents","Kontinuierliche Innovation"],
-   action:"KI-Roadmap als Vorstandsthema · Fine-tuning · KI-Governance · Partnerschaften",dauer:"18+ Monate"},
-];
-
-// ── Helpers ─────────────────────────────────────────────────────────────────────
-function govColor(s){ if(!s) return C.dim; if(s.includes("🔴")) return C.red; if(s.includes("🟡")) return C.amber; if(s.includes("🟢")) return C.green; return C.dim; }
-
-// ── Small Components ──────────────────────────────────────────────────────────────
-function Badge({level}) {
-  const m = {Einstieg:{bg:C.green+"18",c:C.green},Einsteiger:{bg:C.green+"18",c:C.green},Mittel:{bg:C.violet+"15",c:C.violet},Fortgeschritten:{bg:C.magenta+"15",c:C.magenta},Management:{bg:C.teal+"15",c:C.teal}};
-  const key = Object.keys(m).find(k=>(level||"").includes(k));
-  const s = m[key]||{bg:"#eee",c:C.muted};
-  return html`<span style=${{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700}}>${level}</span>`;
+/* ---- leerer Prozessstand ------------------------------------------------ */
+function emptyState(prozessname, modus){
+  return {
+    meta:{ prozessname: prozessname || "Unbenannter Prozess", modus: modus || "gruene_wiese",
+           version: 1, erstellt_am: new Date().toISOString(), zuletzt_geaendert: new Date().toISOString() },
+    kontext:{ ziel:"", ausloeser:"", input:"", output:"", scope:"", abgrenzung:"" },
+    rollen:[], aktivitaeten:[], entscheidungen:[], systeme:[], schnittstellen:[],
+    kennzahlen:[], ausnahmen:[], schmerzpunkte:[], automatisierungspotenziale:[],
+    offene_fragen:[], protokoll:[]
+  };
 }
 
-function GovBadge({level,derived}) {
-  const c = govColor(level);
-  return html`<span style=${{display:"inline-flex",alignItems:"center",gap:4,background:c+"15",color:c,border:`1px solid ${c}33`,padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:800}}>${level}${derived?html`<span title="aus dem Governance-Schema abgeleitet – bitte fachlich prüfen" style=${{fontSize:9,opacity:.85}}>· abgeleitet</span>`:""}</span>`;
-}
+/* ========================================================================
+   SYSTEM-PROMPTS
+   ======================================================================== */
+const SYS_INTERVIEW = [
+"Du bist ein erfahrener Prozessmanager und Business Analyst. Du moderierst eine strukturierte Prozessaufnahme im Interview.",
+"Ton: professionell, moderierend, unterstützend. Sprache: Deutsch. Sieze den Nutzer nicht aufdringlich, bleibe sachlich-freundlich.",
+"",
+"GRUNDREGELN:",
+"1. Stelle IMMER genau EINE Frage pro Schritt. Niemals mehrere Fragen gleichzeitig oder Frageketten.",
+"2. Wähle stets die NÄCHSTE WICHTIGSTE Lücke im Prozessbild und frage gezielt danach.",
+"3. Spiegele in 1-2 Sätzen kurz die letzte Antwort (Bestätigung/Einordnung), dann die nächste Frage.",
+"4. Formuliere klar und verständlich, ohne unnötigen Fachjargon.",
+"",
+"MODI:",
+"- modus = 'gruene_wiese': Soll-/Zielprozess. Frage nach dem idealen, gewünschten Ablauf.",
+"- modus = 'ist': Ist-Prozess. Frage nach dem TATSÄCHLICHEN Ablauf inkl. Workarounds, Medienbrüchen und Abweichungen.",
+"",
+"ERHEBUNGSRASTER (was ein vollständiger Prozess braucht – arbeite dich entlang der größten Lücken vor):",
+"Prozessname & Ziel · Auslöser/Trigger · Input · Aktivitäten in Reihenfolge · Rollen/Verantwortliche · ",
+"Entscheidungspunkte/Gateways mit Bedingungen · beteiligte Systeme/Tools · Schnittstellen · Output/Ergebnis · ",
+"Kennzahlen/SLAs · Ausnahmen/Sonderfälle · Schmerzpunkte.",
+"",
+"NEBENAUFGABEN bei JEDER Antwort:",
+"- Erkenne Automatisierungspotenziale (Medienbrüche, wiederkehrende manuelle Schritte, regelbasierte Entscheidungen) und pflege sie in 'automatisierungspotenziale'.",
+"- Sammle Unklarheiten in 'offene_fragen'.",
+"- Schreibe Frage und Antwort als Eintrag in 'protokoll'.",
+"- Pflege die Diagramm-Struktur: setze für jede Aktivität 'vorgaenger' (Liste von Aktivitäts-IDs) und für Entscheidungen 'optionen' mit 'bedingung' und 'nach_aktivitaet_id' (Ziel-ID), damit der Ablauf als eindeutiger Graph abbildbar ist.",
+"",
+"AUSGABEFORMAT (zwingend): Antworte AUSSCHLIESSLICH mit EINEM gültigen JSON-Objekt, ohne Markdown-Codefences, ohne Text davor oder danach. Struktur:",
+'{',
+'  "stand": { ... der vollständige, aktualisierte Prozessstand mit allen Feldern ... },',
+'  "moderation": "1-2 Sätze Spiegelung/Einordnung der letzten Antwort",',
+'  "naechste_frage": "genau EINE Frage",',
+'  "fortschritt": { "prozent": 0-100, "erfasste_bereiche": ["..."], "offene_bereiche": ["..."] },',
+'  "fertig": false',
+'}',
+"Setze 'fertig' nur dann auf true, wenn alle Rasterbereiche tragfähig erfasst sind; dann darf 'naechste_frage' leer sein.",
+"Gib im Feld 'stand' immer das KOMPLETTE Objekt zurück (nicht nur Änderungen), damit der Stand konsistent bleibt."
+].join("\n");
 
-function CopyBtn({text}) {
-  const [done,setDone] = useState(false);
-  const go = (e) => { e.stopPropagation(); navigator.clipboard.writeText(text).catch(()=>{}); setDone(true); setTimeout(()=>setDone(false),2000); };
-  return html`<button onClick=${go} style=${{background:done?C.green+"20":"#f0f0f0",border:`1px solid ${done?C.green+"44":C.border}`,color:done?C.green:C.muted,borderRadius:5,padding:"3px 9px",cursor:"pointer",fontSize:10,fontWeight:700,whiteSpace:"nowrap",flexShrink:0,transition:"all .2s"}}>
-    ${done?"✓ Kopiert":"📋 Kopieren"}
-  </button>`;
-}
+const SYS_EXPORT = [
+"Du erstellst aus einem Prozessstand (JSON) eine vollständige, gut strukturierte Markdown-Dokumentation auf Deutsch.",
+"Gib AUSSCHLIESSLICH Markdown aus, ohne umschließende Codefences um das ganze Dokument.",
+"Gliederung in genau dieser Reihenfolge:",
+"1. '# Prozessdokumentation: <Name>' mit Metazeile (Modus, Stand/Datum).",
+"2. '## Prozessbeschreibung' – Fließtext: Ziel, Auslöser, Input, Ablauf in Worten, Rollen, Output.",
+"3. '## Prozessdiagramm' – das unten bereitgestellte Mermaid-Diagramm UNVERÄNDERT in einen Codeblock (drei Backticks gefolgt von 'mermaid') einbetten; nichts neu erfinden oder umbauen.",
+"4. '## Gesprächsprotokoll' – nummerierte Liste aller Frage/Antwort-Paare aus 'protokoll'.",
+"5. '## Offene Fragen' – Liste; falls keine, kurz vermerken.",
+"6. '## Automatisierungsvorschläge' – Liste mit jeweils kurzer Begründung/Nutzen.",
+"7. '## Prozessstand (JSON)' – der komplette JSON-Stand in einem Codeblock (drei Backticks gefolgt von 'json').",
+"Sei präzise und erfinde keine Inhalte, die nicht aus dem Stand hervorgehen."
+].join("\n");
 
-function PromptCard({p}) {
-  const [open,setOpen] = useState(false);
-  return html`<div style=${{border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:7}}>
-    <div onClick=${()=>setOpen(!open)} style=${{background:C.surface2,padding:"9px 13px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-      <div style=${{display:"flex",alignItems:"center",gap:7}}>
-        <span style=${{color:C.magenta,fontSize:12}}>${open?"▾":"▸"}</span>
-        <span style=${{fontWeight:700,fontSize:12}}>${p.label}</span>
-      </div>
-      <${CopyBtn} text=${p.text}/>
-    </div>
-    ${open && html`<pre style=${{margin:0,padding:"12px 14px",background:C.surface,fontSize:11.5,lineHeight:1.65,color:C.text,whiteSpace:"pre-wrap",fontFamily:"'Inter',sans-serif",borderTop:`1px solid ${C.border}`}}>${p.text}</pre>`}
-  </div>`;
-}
-
-// ── Use-Case Card ─────────────────────────────────────────────────────────────────
-function UCCard({uc}) {
-  const [open,setOpen] = useState(false);
-  const tabsAvail = [["overview","📋 Überblick"]];
-  if(uc.details) tabsAvail.push(["details","🔧 Details"]);
-  tabsAvail.push(["example","💡 Beispiel"]);
-  if(uc.kpis) tabsAvail.push(["kpis","📊 KPIs"]);
-  tabsAvail.push(["prompts","🤖 Prompts"]);
-  tabsAvail.push(["gov","🛡️ Governance"]);
-  const [tab,setTab] = useState("overview");
-  const col = uc.col;
-  return html`<div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden",marginBottom:12,boxShadow:"0 1px 3px rgba(0,0,0,.04)"}}>
-    <div onClick=${()=>setOpen(!open)} style=${{padding:"15px 18px",cursor:"pointer",borderLeft:`4px solid ${col}`}}>
-      <div style=${{display:"flex",alignItems:"flex-start",gap:11}}>
-        <span style=${{fontSize:21,lineHeight:1}}>${uc.icon}</span>
-        <div style=${{flex:1,minWidth:0}}>
-          <div style=${{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
-            <span style=${{fontWeight:800,fontSize:14,color:C.text}}>${uc.title}</span>
-            <${Badge} level=${uc.level}/>
-            ${uc.gov && html`<${GovBadge} level=${uc.gov} derived=${uc.govDerived}/>`}
-            <span style=${{background:C.surface3,border:`1px solid ${C.border}`,color:C.muted,fontSize:10,padding:"1px 7px",borderRadius:20,fontWeight:600}}>${uc.category}</span>
-          </div>
-          <p style=${{color:C.muted,fontSize:12,lineHeight:1.6,margin:0}}>${uc.solution}</p>
-          <div style=${{marginTop:7,display:"flex",gap:5,flexWrap:"wrap"}}>
-            ${uc.dept.filter(d=>d!=="all").map(d=>{const dd=DEPTS.find(x=>x.id===d);return dd?html`<span key=${d} style=${{fontSize:9,color:C.muted,background:C.surface2,border:`1px solid ${C.border}`,borderRadius:20,padding:"1px 7px"}}>${dd.icon} ${dd.label}</span>`:"";})}
-          </div>
-        </div>
-        <span style=${{color:C.dim,fontSize:14,flexShrink:0}}>${open?"▲":"▼"}</span>
-      </div>
-    </div>
-    ${open && html`<div style=${{borderTop:`1px solid ${C.border}`}}>
-      <div style=${{display:"flex",borderBottom:`1px solid ${C.border}`,background:C.surface2,overflowX:"auto"}}>
-        ${tabsAvail.map(([id,lbl])=>html`<button key=${id} onClick=${()=>setTab(id)} style=${{padding:"8px 14px",border:"none",background:"transparent",borderBottom:`2px solid ${tab===id?col:"transparent"}`,color:tab===id?col:C.muted,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>${lbl}</button>`)}
-      </div>
-      <div style=${{padding:"15px 18px"}}>
-        ${tab==="overview" && html`<div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:5}}>PROBLEM</div><p style=${{fontSize:12,lineHeight:1.6,color:C.text,margin:0}}>${uc.problem}</p></div>
-          <div><div style=${{fontSize:10,fontWeight:700,color:col,letterSpacing:.8,marginBottom:5}}>KI-LÖSUNG</div><p style=${{fontSize:12,lineHeight:1.6,color:C.text,margin:0}}>${uc.solution}</p></div>
-          <div style=${{gridColumn:"1 / -1",background:col+"0c",border:`1px solid ${col}25`,borderRadius:8,padding:"10px 13px",display:"flex",gap:8,alignItems:"center"}}><span>⚡</span><span style=${{color:col,fontWeight:700,fontSize:12}}>${uc.benefit}</span></div>
-        </div>`}
-        ${tab==="details" && uc.details && html`<div>
-          <div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:8}}>WAS KI HIER KONKRET MACHT</div>
-          ${uc.details.map((d,i)=>html`<div key=${i} style=${{display:"flex",gap:7,marginBottom:5}}><span style=${{color:col,fontWeight:900,fontSize:13,flexShrink:0}}>→</span><span style=${{color:C.text,fontSize:12,lineHeight:1.6}}>${d}</span></div>`)}
-        </div>`}
-        ${tab==="example" && html`<div>
-          <div style=${{background:col+"08",border:`1px solid ${col}25`,borderRadius:8,padding:"13px 15px",marginBottom:12}}>
-            <div style=${{fontSize:10,fontWeight:700,color:col,letterSpacing:.8,marginBottom:7}}>PRAXIS-SZENARIO</div>
-            <p style=${{color:C.text,fontSize:12,lineHeight:1.8,margin:0}}>${uc.example}</p>
-          </div>
-          <div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:7}}>GEEIGNETE TOOLS</div>
-          <div style=${{display:"flex",gap:5,flexWrap:"wrap",marginBottom:9}}>${uc.tools.map(t=>html`<span key=${t} style=${{background:col+"12",border:`1px solid ${col}30`,color:col,borderRadius:20,padding:"3px 9px",fontSize:11,fontWeight:600}}>${t}</span>`)}</div>
-          <p style=${{color:C.muted,fontSize:11.5,lineHeight:1.7,margin:0}}>${uc.toolRecommendation}</p>
-        </div>`}
-        ${tab==="kpis" && uc.kpis && html`<div>
-          <div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:9}}>TYPISCHE MESSBARE ERGEBNISSE</div>
-          <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}}>${uc.kpis.map((k,i)=>html`<div key=${i} style=${{background:C.surface2,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 13px",textAlign:"center"}}><div style=${{fontSize:17,marginBottom:3}}>${["📈","🎯","⚡","✅","🔥"][i%5]}</div><div style=${{color:col,fontWeight:800,fontSize:12}}>${k}</div></div>`)}</div>
-        </div>`}
-        ${tab==="prompts" && html`<div>
-          <div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:9}}>COPY-PASTE PROMPTS – SOFORT NUTZBAR</div>
-          ${uc.prompts.map((p,i)=>html`<${PromptCard} key=${i} p=${p}/>`)}
-          <div style=${{background:C.surface2,border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 12px",marginTop:7}}><span style=${{fontSize:11,color:C.muted}}>💡 <strong style=${{color:C.text}}>Tipp:</strong> Ersetze [PLATZHALTER] durch konkrete Infos. Je mehr Kontext, desto besser das Ergebnis.</span></div>
-        </div>`}
-        ${tab==="gov" && html`<div>
-          <div style=${{display:"flex",alignItems:"center",gap:9,marginBottom:12}}>
-            ${uc.gov && html`<${GovBadge} level=${uc.gov} derived=${uc.govDerived}/>`}
-          </div>
-          ${uc.govDerived && html`<div style=${{background:C.amberLight,border:`1px solid ${C.amber}33`,borderRadius:7,padding:"8px 11px",marginBottom:12,fontSize:11,color:C.muted,lineHeight:1.6}}>ℹ️ Diese Einstufung wurde aus dem Governance-Schema abgeleitet und sollte fachlich bestätigt werden.</div>`}
-          ${uc.govHints && html`<div style=${{marginBottom:12}}><div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:6}}>GOVERNANCE-HINWEISE</div>${uc.govHints.map((g,i)=>html`<div key=${i} style=${{display:"flex",gap:7,marginBottom:4}}><span style=${{color:C.amber,flexShrink:0}}>•</span><span style=${{fontSize:12,lineHeight:1.6,color:C.text}}>${g}</span></div>`)}</div>`}
-          ${uc.whenNot && html`<div style=${{background:C.redLight,border:`1px solid ${C.red}25`,borderRadius:8,padding:"11px 13px",marginBottom:12}}><div style=${{fontSize:10,fontWeight:700,color:C.red,letterSpacing:.8,marginBottom:4}}>WANN NICHT NUTZEN</div><p style=${{fontSize:12,lineHeight:1.6,color:C.text,margin:0}}>${uc.whenNot}</p></div>`}
-          ${uc.qualityCheck && html`<div style=${{marginBottom:12}}><div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:6}}>QUALITÄTSCHECK</div>${uc.qualityCheck.map((q,i)=>html`<div key=${i} style=${{display:"flex",gap:7,marginBottom:4}}><span style=${{color:C.green,flexShrink:0}}>✓</span><span style=${{fontSize:12,lineHeight:1.6,color:C.text}}>${q}</span></div>`)}</div>`}
-          <div style=${{background:C.surface2,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 13px"}}><div style=${{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:4}}>HINWEIS / RISIKO</div><p style=${{fontSize:12,lineHeight:1.6,color:C.text,margin:0}}>${uc.risk}</p></div>
-        </div>`}
-      </div>
-    </div>`}
-  </div>`;
-}
-
-// ── KI verstehen ──────────────────────────────────────────────────────────────────
-function Learn() {
-  const [sub,setSub] = useState("basics");
-  const subs = [["basics","Grundlagen"],["caps","Fähigkeiten"],["fields","Einsatzfelder & Tools"],["models","Modelle & Methoden"],["controlling","KI im Controlling"],["limits","Grenzen & Risiken"],["usage","Richtige Nutzung"]];
-  const td = {padding:"9px 11px",borderBottom:`1px solid ${C.border}`,verticalAlign:"top",fontSize:11.5,lineHeight:1.55};
-  return html`<div class="fade-in">
-    <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>KI verstehen</h2>
-    <p style=${{color:C.muted,fontSize:13,marginBottom:18}}>Gemeinsames Fundament: Einsatzfelder, Tools, Modelle – und wie klassische Methoden wie Regression mit moderner KI zusammenhängen.</p>
-    <div style=${{display:"flex",gap:6,flexWrap:"wrap",marginBottom:18}}>
-      ${subs.map(([id,lbl])=>html`<button key=${id} onClick=${()=>setSub(id)} style=${{background:sub===id?C.magenta:C.surface,border:`1px solid ${sub===id?C.magenta:C.border}`,color:sub===id?"#fff":C.muted,borderRadius:20,padding:"5px 13px",cursor:"pointer",fontSize:11,fontWeight:700}}>${lbl}</button>`)}
-    </div>
-
-    ${sub==="basics" && html`<div>
-      <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 20px",marginBottom:12}}>
-        <h3 style=${{margin:"0 0 8px",fontWeight:800,fontSize:14}}>Was ist KI?</h3>
-        <p style=${{color:C.muted,fontSize:12.5,lineHeight:1.75,margin:"0 0 8px"}}>Künstliche Intelligenz bezeichnet Systeme, die Muster in Daten erkennen, Inhalte erzeugen oder Vorschläge ableiten. Im Unternehmen geht es meist um Unterstützung bei Textarbeit, Analyse, Strukturierung, Planung oder Automatisierung.</p>
-        <p style=${{color:C.muted,fontSize:12.5,lineHeight:1.75,margin:0}}>KI liefert Vorschläge. Sie übernimmt nicht automatisch Verantwortung, Kontextverständnis oder fachliche Bewertung.</p>
-      </div>
-      <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 20px",marginBottom:12}}>
-        <h3 style=${{margin:"0 0 8px",fontWeight:800,fontSize:14}}>KI, Machine Learning & generative KI</h3>
-        <p style=${{color:C.muted,fontSize:12.5,lineHeight:1.75,margin:"0 0 6px"}}><strong style=${{color:C.text}}>Machine Learning</strong> nutzt Daten, um Muster zu erkennen und Vorhersagen zu treffen.</p>
-        <p style=${{color:C.muted,fontSize:12.5,lineHeight:1.75,margin:"0 0 6px"}}><strong style=${{color:C.text}}>Generative KI</strong> erzeugt neue Inhalte: Texte, Zusammenfassungen, Bilder, Code oder Strukturvorschläge.</p>
-        <p style=${{color:C.muted,fontSize:12.5,lineHeight:1.75,margin:0}}><strong style=${{color:C.text}}>Klassische Modelle</strong> wie lineare Regression bleiben wichtig, weil sie nachvollziehbar und gut erklärbar sind.</p>
-      </div>
-      <div style=${{borderLeft:`4px solid ${C.magenta}`,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px"}}>
-        <span style=${{fontSize:12.5,color:C.text,lineHeight:1.7}}><strong>Kernaussage:</strong> KI ist kein einzelnes Tool, sondern ein Werkzeugkasten. Nutzen entsteht erst, wenn Aufgabe, Daten, Tool und Verantwortlichkeit zusammenpassen.</span>
-      </div>
-    </div>`}
-
-    ${sub==="caps" && html`<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-      ${[["Text & Sprache","KI schreibt, verbessert, vereinfacht, fasst zusammen oder ändert die Tonalität.","Aus langen Stichpunkten wird eine kurze Zusammenfassung."],["Analyse & Strukturierung","KI ordnet Informationen, extrahiert Kernaussagen und macht Zusammenhänge sichtbar.","Aus Berichtstexten werden Risiken, Ursachen und Optionen abgeleitet."],["Ideen & Varianten","KI entwickelt Alternativen: Formulierungen, Optionen, Hypothesen, Gliederungen.",""],["Automatisierung","Mit Workflow-Tools unterstützt KI wiederkehrende Aufgaben wie Klassifikation oder Textbausteine.",""]].map(([t,d,ex])=>html`<div key=${t} style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 18px"}}>
-        <h3 style=${{margin:"0 0 7px",fontWeight:800,fontSize:13.5}}>${t}</h3>
-        <p style=${{color:C.muted,fontSize:12,lineHeight:1.7,margin:ex?"0 0 6px":0}}>${d}</p>
-        ${ex && html`<p style=${{color:C.text,fontSize:11.5,lineHeight:1.6,margin:0}}><strong>Beispiel:</strong> ${ex}</p>`}
-      </div>`)}
-    </div>`}
-
-    ${sub==="fields" && html`<div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 20px"}}>
-      <h3 style=${{margin:"0 0 8px",fontWeight:800,fontSize:14}}>Einsatzfelder & geeignete Tools</h3>
-      <p style=${{color:C.muted,fontSize:12,lineHeight:1.7,marginBottom:12}}>Orientierung – welche Tools tatsächlich genutzt werden dürfen, klären interne Freigaben und Governance.</p>
-      <div style=${{overflowX:"auto"}}>
-        <table style=${{width:"100%",borderCollapse:"collapse",minWidth:620}}>
-          <thead><tr>${["Einsatzfeld","Typische Aufgaben","Mögliche Tools","Hinweis"].map(h=>html`<th key=${h} style=${{background:C.surface3,textAlign:"left",padding:"9px 11px",borderBottom:`2px solid ${C.border}`,fontWeight:700,fontSize:11}}>${h}</th>`)}</tr></thead>
-          <tbody>
-          ${[
-            ["Text & Kommunikation","E-Mails, Berichte, Zusammenfassungen","ChatGPT, Copilot, Gemini, Claude","Guter Einstieg, Inhalte prüfen."],
-            ["Office-Produktivität","Dokumente, Tabellen, Präsentationen","Microsoft Copilot, Gemini Workspace","Sinnvoll bei Integration."],
-            ["Analyse & Recherche","Texte auswerten, Hypothesen bilden","ChatGPT, Claude, Perplexity","Quellen kritisch prüfen."],
-            ["Datenanalyse","Tabellen analysieren, Muster erkennen","Excel, Copilot, Power BI, Python","Datenqualität entscheidend."],
-            ["Wissensmanagement","Interne Dokumente bündeln & abrufen","ChatBot-Factory, SharePoint, Confluence","Quellen, Aktualität, Rechte."],
-            ["Automatisierung","Workflows, wiederkehrende Prozesse","Power Automate, Zapier, Make","Für standardisierte Abläufe."],
-            ["Präsentation","Storylines, Slides, Visualisierung","PowerPoint Copilot, Gamma, Canva","Gut für Entwürfe."],
-            ["Programmierung","Code erklären, Skripte erstellen","GitHub Copilot, Claude","Code muss getestet werden."],
-          ].map((r,i)=>html`<tr key=${i}>${r.map((c,j)=>html`<td key=${j} style=${{...td,color:j===0?C.text:C.muted,fontWeight:j===0?700:400}}>${c}</td>`)}</tr>`)}
-          </tbody>
-        </table>
-      </div>
-    </div>`}
-
-    ${sub==="models" && html`<div>
-      <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:12,marginBottom:12}}>
-        <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 20px"}}>
-          <h3 style=${{margin:"0 0 8px",fontWeight:800,fontSize:14}}>Lineare Regression</h3>
-          <p style=${{color:C.muted,fontSize:12,lineHeight:1.7,margin:"0 0 6px"}}>Beschreibt Zusammenhänge zwischen Einflussgrößen und einer Zielgröße: „Wenn sich X verändert, wie verändert sich Y?"</p>
-          <p style=${{color:C.text,fontSize:11.5,lineHeight:1.6,margin:"0 0 4px"}}><strong>Anwendungen:</strong> Umsatzprognosen, Kostenentwicklung, Mengenplanung, Treiberanalyse.</p>
-          <p style=${{color:C.green,fontSize:11.5,margin:"0 0 2px"}}><strong>Stärke:</strong> transparent und erklärbar.</p>
-          <p style=${{color:C.amber,fontSize:11.5,margin:0}}><strong>Grenze:</strong> eher für einfache Zusammenhänge.</p>
-        </div>
-        <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 20px"}}>
-          <h3 style=${{margin:"0 0 8px",fontWeight:800,fontSize:14}}>Neuronale Netze</h3>
-          <p style=${{color:C.muted,fontSize:12,lineHeight:1.7,margin:"0 0 6px"}}>Erkennen komplexe, nichtlineare Muster besser als einfache Modelle.</p>
-          <p style=${{color:C.text,fontSize:11.5,lineHeight:1.6,margin:"0 0 4px"}}><strong>Anwendungen:</strong> komplexe Forecasts, Mustererkennung, Anomalieerkennung.</p>
-          <p style=${{color:C.green,fontSize:11.5,margin:"0 0 2px"}}><strong>Stärke:</strong> leistungsfähig bei komplexen Daten.</p>
-          <p style=${{color:C.amber,fontSize:11.5,margin:0}}><strong>Grenze:</strong> schwerer erklärbar.</p>
-        </div>
-      </div>
-      <div style=${{borderLeft:`4px solid ${C.magenta}`,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px"}}>
-        <span style=${{fontSize:12.5,color:C.text,lineHeight:1.7}}><strong>Praxis:</strong> Das beste Modell ist nicht immer das komplexeste. Im Controlling kann Erklärbarkeit wichtiger sein als eine minimale Prognoseverbesserung.</span>
-      </div>
-    </div>`}
-
-    ${sub==="controlling" && html`<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12}}>
-      ${[["Planung & Forecasting","KI strukturiert Trends, historische Daten und Einflussfaktoren und bereitet Forecasts vor."],["Abweichungsanalyse","KI macht Auffälligkeiten sichtbar und strukturiert mögliche Ursachen als Hypothesen."],["Management-Kommentierung","Aus Zahlen und Kontext entstehen sachliche Kommentare. Die Prüfung bleibt beim Controlling."],["Szenarien","KI bereitet Annahmen, Szenarien und Entscheidungsoptionen verständlich auf."]].map(([t,d])=>html`<div key=${t} style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"16px 18px"}}>
-        <h3 style=${{margin:"0 0 7px",fontWeight:800,fontSize:13.5}}>${t}</h3>
-        <p style=${{color:C.muted,fontSize:12,lineHeight:1.7,margin:0}}>${d}</p>
-      </div>`)}
-    </div>`}
-
-    ${sub==="limits" && html`<div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12}}>
-      ${[["Falsche Inhalte","KI kann überzeugend klingende, aber falsche Aussagen erzeugen.",C.red,C.redLight],["Datenschutz","Sensible Daten nur in freigegebenen Umgebungen verarbeiten.",C.amber,C.amberLight],["Black Box","Komplexe Modelle können schwer erklärbar sein.",C.teal,C.tealLight],["Übervertrauen","KI-Ergebnisse wirken plausibel und müssen trotzdem geprüft werden.",C.amber,C.amberLight]].map(([t,d,col,bg])=>html`<div key=${t} style=${{background:bg,border:`1px solid ${col}30`,borderRadius:11,padding:"16px 18px"}}>
-        <h3 style=${{margin:"0 0 7px",fontWeight:800,fontSize:13.5,color:col}}>${t}</h3>
-        <p style=${{color:C.text,fontSize:12,lineHeight:1.7,margin:0}}>${d}</p>
-      </div>`)}
-    </div>`}
-
-    ${sub==="usage" && html`<div>
-      <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:12}}>
-        <div style=${{background:C.greenLight,border:`1px solid ${C.green}30`,borderRadius:11,padding:"16px 18px"}}>
-          <h3 style=${{margin:"0 0 9px",fontWeight:800,fontSize:13.5,color:C.green}}>✓ Gute Nutzung</h3>
-          ${["Aufgabe klar beschreiben","Zielgruppe nennen","Kontext und Format angeben","Ergebnis prüfen"].map(x=>html`<div key=${x} style=${{display:"flex",gap:6,marginBottom:4}}><span style=${{color:C.green}}>✓</span><span style=${{fontSize:12,color:C.text}}>${x}</span></div>`)}
-        </div>
-        <div style=${{background:C.redLight,border:`1px solid ${C.red}30`,borderRadius:11,padding:"16px 18px"}}>
-          <h3 style=${{margin:"0 0 9px",fontWeight:800,fontSize:13.5,color:C.red}}>✕ Schlechte Nutzung</h3>
-          ${["vage Eingaben","blindes Übernehmen","unzulässige Daten eingeben","KI als Entscheidungsinstanz behandeln"].map(x=>html`<div key=${x} style=${{display:"flex",gap:6,marginBottom:4}}><span style=${{color:C.red}}>✕</span><span style=${{fontSize:12,color:C.text}}>${x}</span></div>`)}
-        </div>
-      </div>
-      <div style=${{borderLeft:`4px solid ${C.magenta}`,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px"}}>
-        <span style=${{fontSize:12.5,color:C.text,lineHeight:1.7}}><strong>Grundprinzip:</strong> KI ist ein Assistenzsystem. Verantwortung, Bewertung und Entscheidung bleiben beim Menschen.</span>
-      </div>
-    </div>`}
-  </div>`;
-}
-
-// ── Main App ──────────────────────────────────────────────────────────────────────
-function App() {
-  const [tab,setTab] = useState("home");
-  const [ucMode,setUcMode] = useState("dept");
-  const [filter,setFilter] = useState("all");
-  const [ucQuery,setUcQuery] = useState("");
-  const [promptCat,setPromptCat] = useState("Alle");
-  const [promptQuery,setPromptQuery] = useState("");
-
-  const NAV = [
-    {id:"home",label:"Start",icon:"🏠"},
-    {id:"learn",label:"KI verstehen",icon:"📘"},
-    {id:"strategy",label:"Strategie",icon:"🧭"},
-    {id:"usecases",label:"Use Cases",icon:"💡"},
-    {id:"prompts",label:"Prompts",icon:"📋"},
-    {id:"maturity",label:"Reifegrad",icon:"📈"},
-    {id:"tools",label:"Tools",icon:"🛠️"},
-    {id:"governance",label:"Governance",icon:"🛡️"},
-  ];
-  const CATS = ["Alle"].concat(Array.from(new Set(UC.map(u=>u.category))));
-  const filterList = ucMode==="dept" ? DEPTS : [{id:"all",label:"Alle Gruppen",icon:"🌐"}].concat(PERSONAS);
-
-  const q = ucQuery.trim().toLowerCase();
-  const filteredUC = UC.filter(u=>{
-    const tagOk = filter==="all" ? true : (ucMode==="dept" ? u.dept.includes(filter) : u.personas.includes(filter));
-    const hay = (u.title+" "+u.solution+" "+u.category+" "+u.tools.join(" ")+" "+(u.details||[]).join(" ")).toLowerCase();
-    return tagOk && (!q || hay.includes(q));
+/* ========================================================================
+   API-HELFER
+   ======================================================================== */
+async function callClaude(system, userContent, maxTokens){
+  if(!WORKER_SET) throw new Error("WORKER_URL ist nicht gesetzt. Bitte im Code (Konstante WORKER_URL) eintragen.");
+  const res = await fetch(WORKER_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      system,
+      max_tokens: maxTokens || 2500,
+      messages:[{ role:"user", content: userContent }]
+    })
   });
+  if(!res.ok){
+    let detail = "";
+    try{ detail = (await res.text()).slice(0,300); }catch(e){}
+    throw new Error("Worker-Antwort " + res.status + (detail ? " – " + detail : ""));
+  }
+  const data = await res.json();
+  if(data.error){ throw new Error(typeof data.error==="string"?data.error:JSON.stringify(data.error)); }
+  const text = (data.content || [])
+    .filter(b => b.type === "text")
+    .map(b => b.text)
+    .join("\n");
+  if(!text) throw new Error("Leere Antwort von der KI erhalten.");
+  return text;
+}
 
-  const pq = promptQuery.trim().toLowerCase();
-  const promptRows = [];
-  UC.forEach(u=>{
-    if(promptCat!=="Alle" && u.category!==promptCat) return;
-    u.prompts.forEach(p=>{
-      const hay = (u.title+" "+p.label+" "+p.text+" "+u.category+" "+u.tools.join(" ")).toLowerCase();
-      if(!pq || hay.includes(pq)) promptRows.push({uc:u,p});
+function parseLoose(text){
+  let t = text.trim();
+  t = t.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+  const first = t.indexOf("{"), last = t.lastIndexOf("}");
+  if(first !== -1 && last !== -1) t = t.slice(first, last+1);
+  return JSON.parse(t);
+}
+
+function download(filename, content, type){
+  const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* ---- Prozessbild deterministisch aus dem Stand erzeugen (kein KI-Aufruf) ---- */
+const ROLE_COLORS = ["#0f6e63","#b4690e","#3a6ea5","#8a3b8f","#487c2b","#a3392f","#5b6770","#0a8d7e","#9a6a00","#6d4caf"];
+function mmEsc(s){ return String(s==null?"":s).replace(/"/g,"'").replace(/[\[\]\{\}\|<>]/g," ").replace(/\s+/g," ").trim(); }
+function mmLabel(s,max){ const t = mmEsc(s).slice(0, max||80); return '"'+(t||"—")+'"'; }
+function mmSafeId(raw, fallback){ const s = String(raw==null?"":raw).replace(/[^A-Za-z0-9_]/g,""); return (/^[A-Za-z]/.test(s) ? s : fallback); }
+
+function buildMermaid(state){
+  state = state || {};
+  const acts = Array.isArray(state.aktivitaeten) ? state.aktivitaeten : [];
+  const decisions = Array.isArray(state.entscheidungen) ? state.entscheidungen : [];
+  const kontext = state.kontext || {};
+  const L = ["flowchart TD"];
+
+  // Rollen + Farben
+  const roles = [];
+  acts.forEach(a=>{ if(a && a.rolle && roles.indexOf(a.rolle)<0) roles.push(a.rolle); });
+  (state.rollen||[]).forEach(r=>{ const rr = (typeof r==="string")?r:(r&&r.rolle); if(rr && roles.indexOf(rr)<0) roles.push(rr); });
+  const roleColor = {}; roles.forEach((r,i)=> roleColor[r]=ROLE_COLORS[i%ROLE_COLORS.length]);
+  const legend = roles.map(r=>({ rolle:r, color:roleColor[r] }));
+
+  if(!acts.length){
+    L.push('  S(["Noch keine Aktivitäten erfasst"])');
+    return { code:L.join("\n"), legend:[] };
+  }
+
+  // ID-Mapping rohId -> mermaid-sichere ID
+  const idMap = {};
+  acts.forEach((a,i)=>{ const raw = (a && a.id) ? a.id : ("A"+(i+1)); idMap[raw] = mmSafeId(raw, "A"+(i+1)); });
+
+  // Start/Ende
+  L.push('  START(['+mmLabel(kontext.ausloeser ? ("Start: "+kontext.ausloeser) : "Start", 60)+'])');
+
+  // Knoten
+  acts.forEach((a,i)=>{
+    const raw = (a && a.id) ? a.id : ("A"+(i+1));
+    const id = idMap[raw];
+    let lbl = (a && a.name) ? a.name : ("Schritt "+(i+1));
+    if(a && a.rolle) lbl = a.rolle + ": " + lbl;
+    const typ = (a && a.typ ? a.typ : "aktivitaet").toLowerCase();
+    if(typ==="entscheidung") L.push('  '+id+'{'+mmLabel(lbl)+'}');
+    else if(typ==="start"||typ==="ende") L.push('  '+id+'(['+mmLabel(lbl)+'])');
+    else L.push('  '+id+'['+mmLabel(lbl)+']');
+  });
+  L.push('  ENDE(['+mmLabel(kontext.output ? ("Ende: "+kontext.output) : "Ende", 60)+'])');
+
+  const incoming = {}, hasOut = {};
+  const graph = decisions.some(d=>d&&(d.optionen||[]).some(o=>o&&o.nach_aktivitaet_id&&idMap[o.nach_aktivitaet_id]))
+             || acts.some(a=>a&&Array.isArray(a.vorgaenger)&&a.vorgaenger.some(p=>idMap[p]));
+
+  // Entscheidungskanten sammeln (auf Aktivität verankert oder eigenständig)
+  const decEdges = [];
+  decisions.forEach((d,di)=>{
+    if(!d) return;
+    let fromRaw=null, fromId=null;
+    if(d.id && idMap[d.id]){ fromRaw=d.id; fromId=idMap[d.id]; }
+    if(!fromId){
+      const m = acts.find(a=> a && (a.typ||"").toLowerCase()==="entscheidung" && a.name && d.frage && a.name.trim().toLowerCase()===String(d.frage).trim().toLowerCase());
+      if(m){ fromRaw=m.id; fromId=idMap[m.id]; }
+    }
+    if(!fromId){ fromId=mmSafeId(d.id,"D"+(di+1)); L.push('  '+fromId+'{'+mmLabel(d.frage||("Entscheidung "+(di+1)))+'}'); }
+    (d.optionen||[]).forEach(o=>{
+      if(!o) return;
+      const t = (o.nach_aktivitaet_id && idMap[o.nach_aktivitaet_id]) ? idMap[o.nach_aktivitaet_id] : null;
+      if(t) decEdges.push({ fromId, label:mmEsc(o.bedingung||""), targetId:t, fromRaw, targetRaw:o.nach_aktivitaet_id });
     });
   });
 
-  const switchMode = (m) => { setUcMode(m); setFilter("all"); };
+  const edge = (from,to,label)=> L.push(label ? ('  '+from+' -->|"'+label+'"| '+to) : ('  '+from+' --> '+to));
 
-  return html`<div style=${{minHeight:"100vh",background:C.bg}}>
-    <div style=${{background:C.navBg,borderBottom:`3px solid ${C.magenta}`,padding:"0 24px",position:"sticky",top:0,zIndex:100}}>
-      <div style=${{maxWidth:1180,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:54,gap:14}}>
-        <div style=${{display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
-          <div style=${{width:32,height:32,borderRadius:7,background:C.magenta,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:13,color:"#fff",letterSpacing:.3}}>KI</div>
-          <span style=${{fontWeight:900,fontSize:16,color:"#fff"}}>KI-Lernplattform</span>
-        </div>
-        <nav style=${{display:"flex",gap:2,overflowX:"auto"}}>
-          ${NAV.map(n=>html`<button key=${n.id} onClick=${()=>setTab(n.id)} style=${{background:tab===n.id?C.magenta:"transparent",border:"none",borderRadius:6,padding:"5px 11px",cursor:"pointer",fontSize:11,fontWeight:700,color:tab===n.id?"#fff":"#999",display:"flex",alignItems:"center",gap:4,whiteSpace:"nowrap"}}>
-            <span>${n.icon}</span><span>${n.label}</span>
-          </button>`)}
-        </nav>
-      </div>
-    </div>
+  if(graph){
+    acts.forEach((a,i)=>{
+      const raw=(a&&a.id)?a.id:("A"+(i+1)); const to=idMap[raw];
+      ((a&&a.vorgaenger)||[]).forEach(p=>{ if(idMap[p]){ edge(idMap[p],to); hasOut[p]=true; incoming[raw]=true; } });
+    });
+    decEdges.forEach(e=>{ edge(e.fromId,e.targetId,e.label); if(e.fromRaw) hasOut[e.fromRaw]=true; incoming[e.targetRaw]=true; });
+    acts.forEach((a,i)=>{ const raw=(a&&a.id)?a.id:("A"+(i+1)); if(!incoming[raw]) edge('START',idMap[raw]); });
+    acts.forEach((a,i)=>{ const raw=(a&&a.id)?a.id:("A"+(i+1)); if(!hasOut[raw]) edge(idMap[raw],'ENDE'); });
+  }else{
+    let prev="START";
+    acts.forEach((a,i)=>{
+      const raw=(a&&a.id)?a.id:("A"+(i+1)); const id=idMap[raw];
+      if(prev) edge(prev,id);
+      const branches = decEdges.filter(e=>e.fromId===id);
+      if(branches.length){ branches.forEach(b=>edge(b.fromId,b.targetId,b.label)); prev=null; }
+      else prev=id;
+    });
+    if(prev && prev!=="START") edge(prev,"ENDE"); else if(prev==="START") edge("START","ENDE");
+  }
 
-    <div style=${{maxWidth:1180,margin:"0 auto",padding:"28px 24px"}}>
+  // Rollen-Farben
+  roles.forEach((r,i)=>{
+    const ids = acts.filter(a=>a&&a.rolle===r).map(a=>idMap[a.id]).filter(Boolean);
+    if(ids.length){
+      L.push('  classDef role'+i+' fill:'+roleColor[r]+',color:#fff,stroke:#2a2f2d,stroke-width:1px;');
+      L.push('  class '+ids.join(",")+' role'+i+';');
+    }
+  });
 
-      ${tab==="home" && html`<div class="fade-in">
-        <div style=${{textAlign:"center",marginBottom:40}}>
-          <div style=${{display:"inline-block",background:C.magentaLight,border:`1px solid ${C.magenta}30`,color:C.magenta,fontSize:11,fontWeight:700,letterSpacing:2,padding:"3px 13px",borderRadius:20,marginBottom:16}}>INTERAKTIVE LERNPLATTFORM</div>
-          <h1 style=${{fontSize:36,fontWeight:900,letterSpacing:-1.5,lineHeight:1.15,marginBottom:14}}>KI verstehen, einführen, nutzen –<br/>
-            <span style=${{background:`linear-gradient(120deg,${C.magenta},${C.violet})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>konkret, sicher, messbar</span>
-          </h1>
-          <p style=${{color:C.muted,fontSize:14,maxWidth:560,margin:"0 auto",lineHeight:1.8}}>Grundlagen, ${UC.length} praxisnahe Use Cases mit Governance-Ampel, fertige Prompts, Reifegradmodell und Tool-Orientierung – für alle Abteilungen und Mitarbeitergruppen.</p>
-          <p style=${{color:C.dim,fontSize:12,maxWidth:560,margin:"12px auto 0",lineHeight:1.7}}><strong>Empfohlene Reihenfolge:</strong> KI verstehen → Strategie → Mitarbeitergruppe/Abteilung wählen → Use Cases & Prompts nutzen → Governance beachten.</p>
-        </div>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:34}}>
-          ${[{icon:"⚡",val:"2–3h",sub:"Zeitersparnis/Woche",desc:"typisch pro Mitarbeiter durch KI",col:C.magenta},{icon:"🎯",val:">60%",sub:"Automatisierbar",desc:"Anteil repetitiver Büroaufgaben",col:C.violet},{icon:"🛡️",val:"100%",sub:"mit Governance",desc:"jeder Use Case mit Ampel & Risiko",col:C.teal}].map(s=>html`<div key=${s.val} style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"22px",textAlign:"center",borderTop:`3px solid ${s.col}`}}>
-            <div style=${{fontSize:26,marginBottom:9}}>${s.icon}</div>
-            <div style=${{fontSize:32,fontWeight:900,color:s.col,letterSpacing:-1,lineHeight:1}}>${s.val}</div>
-            <div style=${{fontWeight:700,fontSize:12,color:C.text,margin:"4px 0 5px"}}>${s.sub}</div>
-            <div style=${{color:C.muted,fontSize:11,lineHeight:1.5}}>${s.desc}</div>
-          </div>`)}
-        </div>
-        <div style=${{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:24}}>
-          ${[{title:"KI verstehen",icon:"📘",desc:"Grundlagen, Fähigkeiten, Modelle (inkl. Regression vs. neuronale Netze) und Grenzen.",go:"learn",col:C.teal,tag:"Fundament"},{title:"Use Cases entdecken",icon:"💡",desc:UC.length+" Anwendungsfälle – filterbar nach Abteilung oder Mitarbeitergruppe, mit KPIs, Prompts und Governance.",go:"usecases",col:C.magenta,tag:"Praxis"},{title:"Prompt-Bibliothek",icon:"📋",desc:"Alle Prompts gesammelt, durchsuchbar und sofort copy-paste-fertig.",go:"prompts",col:C.violet,tag:"Sofort nutzbar"},{title:"Governance & Sicherheit",icon:"🛡️",desc:"Datenklassifizierung, Tool-Freigaben, Qualitätsprüfung – ermöglichen statt verbieten.",go:"governance",col:C.green,tag:"Leitplanken"}].map(c=>html`<div key=${c.title} onClick=${()=>setTab(c.go)} style=${{background:C.surface,border:`1px solid ${C.border}`,borderLeft:`4px solid ${c.col}`,borderRadius:11,padding:"20px 22px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,.05)"}}>
-            <div style=${{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
-              <span style=${{fontSize:20}}>${c.icon}</span>
-              <span style=${{background:c.col+"15",color:c.col,fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:20,border:`1px solid ${c.col}30`}}>${c.tag}</span>
-            </div>
-            <h3 style=${{margin:"0 0 5px",fontWeight:800,fontSize:13.5}}>${c.title}</h3>
-            <p style=${{color:C.muted,fontSize:12,margin:"0 0 11px",lineHeight:1.6}}>${c.desc}</p>
-            <div style=${{color:c.col,fontSize:11,fontWeight:700}}>Öffnen →</div>
-          </div>`)}
-        </div>
-        <div style=${{background:`linear-gradient(135deg,${C.navBg},#2d0060)`,borderRadius:11,padding:"22px 26px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap"}}>
-          <div>
-            <div style=${{color:C.magenta,fontWeight:700,fontSize:10,letterSpacing:1,marginBottom:5}}>SCHNELLSTART</div>
-            <div style=${{color:"#fff",fontWeight:800,fontSize:15,marginBottom:5}}>Neu hier? Wähle deine Mitarbeitergruppe</div>
-            <div style=${{color:"#aaa",fontSize:12}}>Use Cases lassen sich nach Abteilung und nach Rolle filtern – die Prompts sind sofort einsatzbereit.</div>
-          </div>
-          <button onClick=${()=>{setTab("usecases");switchMode("persona");}} style=${{background:C.magenta,color:"#fff",border:"none",borderRadius:7,padding:"11px 22px",cursor:"pointer",fontWeight:800,fontSize:13,whiteSpace:"nowrap"}}>Use Cases ansehen →</button>
-        </div>
-      </div>`}
-
-      ${tab==="learn" && html`<${Learn}/>`}
-
-      ${tab==="strategy" && html`<div class="fade-in">
-        <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>Strategie</h2>
-        <p style=${{color:C.muted,fontSize:13,marginBottom:20}}>Wie nutzt eine Organisation KI sinnvoll, sicher und wirksam?</p>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:14}}>
-          ${[["Warum KI relevant ist","KI verändert Wissensarbeit, Kommunikation, Analyse und Entscheidungsunterstützung.",C.magenta],["Wo KI wirkt","Kommunikation, Wissensmanagement, Reporting, Planung, Analyse und Automatisierung.",C.violet],["Wie man startet","Mit wenigen, gut messbaren Use Cases und klaren Leitplanken.",C.teal],["Wie man steuert","Tool-Freigaben, Verantwortlichkeiten, Schulung und Qualitätssicherung.",C.green]].map(([t,d,col])=>html`<div key=${t} style=${{background:C.surface,border:`1px solid ${C.border}`,borderTop:`3px solid ${col}`,borderRadius:11,padding:"16px 18px"}}>
-            <h3 style=${{margin:"0 0 7px",fontWeight:800,fontSize:13.5}}>${t}</h3>
-            <p style=${{color:C.muted,fontSize:12,lineHeight:1.7,margin:0}}>${d}</p>
-          </div>`)}
-        </div>
-        <div style=${{borderLeft:`4px solid ${C.magenta}`,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 18px",marginBottom:14}}>
-          <span style=${{fontSize:13,color:C.text,lineHeight:1.7}}><strong>Leitlinie:</strong> Enable statt verhindern. Produktive Nutzung ermöglichen, Risiken aktiv steuern.</span>
-        </div>
-        <div style=${{background:C.magentaLight,border:`1px solid ${C.magenta}33`,borderRadius:11,padding:"18px 22px"}}>
-          <div style=${{fontWeight:800,color:C.magenta,marginBottom:11,fontSize:14}}>🚀 30-Tage-Quickstart-Plan</div>
-          <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:11}}>
-            ${[{phase:"Woche 1–2",title:"Fundament legen",items:["Lizenzen für Claude/ChatGPT","KI-Policy-Entwurf erstellen","2–3 Pilot-Use-Cases definieren"]},{phase:"Woche 3",title:"Piloten starten",items:["Pilotteam schulen (2–3 Std.)","Use Cases live ausprobieren","Zeitersparnis täglich notieren"]},{phase:"Woche 4",title:"Evaluieren & skalieren",items:["Ergebnisse messen und vorstellen","Learnings dokumentieren","Rollout planen"]}].map(p=>html`<div key=${p.phase} style=${{background:C.surface,borderRadius:7,padding:"13px 14px"}}>
-              <div style=${{color:C.magenta,fontWeight:800,fontSize:10,marginBottom:3}}>${p.phase}</div>
-              <div style=${{fontWeight:700,fontSize:12,marginBottom:7}}>${p.title}</div>
-              ${p.items.map(item=>html`<div key=${item} style=${{display:"flex",gap:5,marginBottom:4}}><span style=${{color:C.magenta,fontSize:10}}>→</span><span style=${{color:C.muted,fontSize:11}}>${item}</span></div>`)}
-            </div>`)}
-          </div>
-        </div>
-      </div>`}
-
-      ${tab==="usecases" && html`<div class="fade-in">
-        <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>KI Use Cases</h2>
-        <p style=${{color:C.muted,fontSize:13,marginBottom:16}}>Klicke einen Use Case → Tabs: Überblick · Details · Beispiel · KPIs · Prompts · Governance</p>
-        <div style=${{display:"inline-flex",background:C.surface3,borderRadius:9,padding:3,marginBottom:14,gap:3}}>
-          ${[["dept","🏢 Nach Abteilung"],["persona","👥 Nach Mitarbeitergruppe"]].map(([m,lbl])=>html`<button key=${m} onClick=${()=>switchMode(m)} style=${{background:ucMode===m?C.surface:"transparent",border:ucMode===m?`1px solid ${C.border}`:"1px solid transparent",boxShadow:ucMode===m?"0 1px 2px rgba(0,0,0,.08)":"none",color:ucMode===m?C.magenta:C.muted,borderRadius:7,padding:"6px 14px",cursor:"pointer",fontSize:12,fontWeight:700}}>${lbl}</button>`)}
-        </div>
-        <div style=${{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
-          ${filterList.map(d=>html`<button key=${d.id} onClick=${()=>setFilter(d.id)} style=${{background:filter===d.id?C.magenta:C.surface,border:`1px solid ${filter===d.id?C.magenta:C.border}`,color:filter===d.id?"#fff":C.muted,borderRadius:20,padding:"5px 13px",cursor:"pointer",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>
-            <span>${d.icon}</span><span>${d.label}</span>
-          </button>`)}
-        </div>
-        <input value=${ucQuery} onChange=${e=>setUcQuery(e.target.value)} placeholder="Use Cases durchsuchen ..."
-          style=${{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",fontSize:13,color:C.text,marginBottom:16}}/>
-        <div style=${{color:C.dim,fontSize:11,marginBottom:12}}>${filteredUC.length} Use Case${filteredUC.length===1?"":"s"}</div>
-        ${filteredUC.map((uc)=>html`<${UCCard} key=${uc.id} uc=${uc}/>`)}
-        ${filteredUC.length===0 && html`<div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:36,textAlign:"center",color:C.muted}}>Keine Use Cases für diese Auswahl. Filter oder Suche anpassen.</div>`}
-      </div>`}
-
-      ${tab==="prompts" && html`<div class="fade-in">
-        <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>Prompt-Bibliothek</h2>
-        <p style=${{color:C.muted,fontSize:13,marginBottom:16}}>Alle Prompts aus den Use Cases – durchsuchbar und sofort nutzbar.</p>
-        <input value=${promptQuery} onChange=${e=>setPromptQuery(e.target.value)} placeholder="Prompts durchsuchen ..."
-          style=${{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",fontSize:13,color:C.text,marginBottom:12}}/>
-        <div style=${{display:"flex",gap:5,flexWrap:"wrap",marginBottom:16}}>
-          ${CATS.map(c=>html`<button key=${c} onClick=${()=>setPromptCat(c)} style=${{background:promptCat===c?C.magenta:C.surface,border:`1px solid ${promptCat===c?C.magenta:C.border}`,color:promptCat===c?"#fff":C.muted,borderRadius:20,padding:"4px 11px",cursor:"pointer",fontSize:11,fontWeight:700}}>${c}</button>`)}
-        </div>
-        <div style=${{color:C.dim,fontSize:11,marginBottom:12}}>${promptRows.length} Prompt${promptRows.length===1?"":"s"}</div>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:12}}>
-          ${promptRows.map(({uc,p},i)=>html`<div key=${uc.id+i} style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"15px 17px",display:"flex",flexDirection:"column"}}>
-            <div style=${{display:"flex",alignItems:"center",gap:7,marginBottom:6,flexWrap:"wrap"}}>
-              <span style=${{fontSize:16}}>${uc.icon}</span>
-              <span style=${{fontWeight:800,fontSize:13}}>${p.label}</span>
-            </div>
-            <div style=${{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
-              <span style=${{background:C.surface3,border:`1px solid ${C.border}`,color:C.muted,fontSize:9.5,padding:"2px 7px",borderRadius:20,fontWeight:600}}>${uc.category}</span>
-              ${uc.gov && html`<${GovBadge} level=${uc.gov} derived=${uc.govDerived}/>`}
-            </div>
-            <pre style=${{flex:1,margin:"0 0 10px",padding:"11px 13px",background:C.surface2,border:`1px solid ${C.border}`,borderRadius:8,fontSize:11,lineHeight:1.6,color:C.text,whiteSpace:"pre-wrap",fontFamily:"'Inter',sans-serif",maxHeight:210,overflowY:"auto"}}>${p.text}</pre>
-            <div style=${{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-              <span style=${{color:C.dim,fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>aus: ${uc.title}</span>
-              <${CopyBtn} text=${p.text}/>
-            </div>
-          </div>`)}
-        </div>
-        ${promptRows.length===0 && html`<div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:36,textAlign:"center",color:C.muted}}>Keine Prompts gefunden.</div>`}
-      </div>`}
-
-      ${tab==="maturity" && html`<div class="fade-in">
-        <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>KI-Reifegrad-Modell</h2>
-        <p style=${{color:C.muted,fontSize:13,marginBottom:22}}>4 Stufen auf dem Weg zur KI-getriebenen Organisation</p>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:12,marginBottom:24}}>
-          ${MATURITY.map(m=>html`<div key=${m.level} style=${{background:C.surface,border:`1px solid ${m.color}33`,borderTop:`3px solid ${m.color}`,borderRadius:11,padding:"18px 15px"}}>
-            <div style=${{display:"flex",alignItems:"center",gap:7,marginBottom:11}}>
-              <div style=${{width:30,height:30,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:14,color:"#fff"}}>${m.level}</div>
-              <div style=${{fontWeight:800,color:m.color,fontSize:13}}>${m.name}</div>
-            </div>
-            <p style=${{color:C.muted,fontSize:11,lineHeight:1.7,marginBottom:11}}>${m.desc}</p>
-            <div style=${{marginBottom:9}}>
-              <div style=${{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.8,marginBottom:5}}>ERKENNBAR AN</div>
-              ${m.signs.map((z,j)=>html`<div key=${j} style=${{display:"flex",gap:5,marginBottom:4}}><span style=${{color:m.color,fontSize:10}}>✓</span><span style=${{color:C.muted,fontSize:10,lineHeight:1.5}}>${z}</span></div>`)}
-            </div>
-            <div style=${{background:m.color+"10",border:`1px solid ${m.color}25`,borderRadius:6,padding:"7px 9px",marginBottom:7}}>
-              <div style=${{color:m.color,fontSize:9,fontWeight:700,marginBottom:2}}>NÄCHSTE SCHRITTE</div>
-              <div style=${{color:C.muted,fontSize:10,lineHeight:1.6}}>${m.action}</div>
-            </div>
-            <div style=${{color:C.dim,fontSize:9}}>Dauer: <strong style=${{color:C.muted}}>${m.dauer}</strong></div>
-          </div>`)}
-        </div>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:13}}>
-          <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"18px 22px"}}>
-            <h3 style=${{margin:"0 0 13px",fontWeight:800,fontSize:14}}>⚠️ Typische Fehler</h3>
-            ${[["Zu viele Tools gleichzeitig","Führt zu Orientierungslosigkeit"],["Kein klarer Use Case am Start","KI ohne Ziel bringt keinen Mehrwert"],["Mitarbeitende nicht eingebunden","Akzeptanzprobleme bremsen Adoption"],["Keine KI-Policy","Datenschutz- und Haftungsrisiken"],["Unrealistische Erwartungen","KI ist kein Allheilmittel"]].map(([t,d])=>html`<div key=${t} style=${{display:"flex",gap:9,marginBottom:9,alignItems:"flex-start"}}>
-              <span style=${{color:C.magenta,fontWeight:900,flexShrink:0}}>✕</span>
-              <div><div style=${{fontWeight:700,fontSize:12}}>${t}</div><div style=${{color:C.muted,fontSize:11}}>${d}</div></div>
-            </div>`)}
-          </div>
-          <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"18px 22px"}}>
-            <h3 style=${{margin:"0 0 13px",fontWeight:800,fontSize:14}}>✅ Erfolgsfaktoren</h3>
-            ${[["Mit 1–2 Use Cases starten","Fokus schafft messbare Erfolge"],["KI-Champions benennen","Interne Botschafter beschleunigen Adoption"],["Erfolge sichtbar machen","Zeitersparnis messen und kommunizieren"],["Schulung + Praxis kombinieren","Theorie allein reicht nicht"],["Governance von Anfang an","KI-Policy vor dem Rollout"]].map(([t,d])=>html`<div key=${t} style=${{display:"flex",gap:9,marginBottom:9,alignItems:"flex-start"}}>
-              <span style=${{color:C.green,fontWeight:900,flexShrink:0}}>✓</span>
-              <div><div style=${{fontWeight:700,fontSize:12}}>${t}</div><div style=${{color:C.muted,fontSize:11}}>${d}</div></div>
-            </div>`)}
-          </div>
-        </div>
-      </div>`}
-
-      ${tab==="tools" && html`<div class="fade-in">
-        <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>KI-Tools im Überblick</h2>
-        <p style=${{color:C.muted,fontSize:13,marginBottom:20}}>Welches Tool wann? – strukturierter Vergleich</p>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:11,marginBottom:20}}>
-          ${[{tier:"Generalist",icon:"🔧",desc:"Für alle Abteilungen. Perfekter Einstieg.",col:C.magenta,bg:C.magentaLight},{tier:"Spezialist",icon:"🎯",desc:"Für einen Bereich optimiert. Bessere Ergebnisse bei spezifischen Aufgaben.",col:C.violet,bg:C.violetLight},{tier:"Recherche",icon:"🔍",desc:"Stark bei aktuellen Infos mit Quellenangaben.",col:C.teal,bg:C.tealLight}].map(t=>html`<div key=${t.tier} style=${{background:t.bg,border:`1px solid ${t.col}30`,borderTop:`3px solid ${t.col}`,borderRadius:9,padding:"14px"}}>
-            <div style=${{fontSize:19,marginBottom:5}}>${t.icon}</div>
-            <div style=${{color:t.col,fontWeight:800,fontSize:12,marginBottom:3}}>${t.tier}</div>
-            <div style=${{color:C.muted,fontSize:11,lineHeight:1.5}}>${t.desc}</div>
-          </div>`)}
-        </div>
-        <div style=${{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden"}}>
-          <div style=${{overflowX:"auto"}}><div style=${{minWidth:680}}>
-            <div style=${{background:C.navBg,padding:"9px 18px",display:"grid",gridTemplateColumns:"200px 1fr 180px 90px",gap:14}}>
-              ${["Tool","Einsatz & Stärken","Ideal für","Typ"].map(h=>html`<div key=${h} style=${{color:"#888",fontSize:10,fontWeight:700,letterSpacing:.8}}>${h}</div>`)}
-            </div>
-            ${TOOLS_LIST.map((t,i)=>{
-              const tc = t.tier==="Generalist"?C.magenta:t.tier==="Spezialist"?C.violet:C.teal;
-              return html`<div key=${t.name} style=${{padding:"12px 18px",borderBottom:i<TOOLS_LIST.length-1?`1px solid ${C.border}`:"none",display:"grid",gridTemplateColumns:"200px 1fr 180px 90px",gap:14,alignItems:"center"}}>
-                <div style=${{fontWeight:700,fontSize:13}}>${t.name}</div>
-                <div style=${{color:C.muted,fontSize:11,lineHeight:1.5}}>${t.use}</div>
-                <div style=${{fontSize:11,lineHeight:1.5}}>${t.best}</div>
-                <span style=${{background:tc+"15",color:tc,border:`1px solid ${tc}30`,fontSize:9,padding:"3px 7px",borderRadius:20,fontWeight:800,textAlign:"center"}}>${t.tier}</span>
-              </div>`;
-            })}
-          </div></div>
-        </div>
-      </div>`}
-
-      ${tab==="governance" && html`<div class="fade-in">
-        <h2 style=${{fontWeight:900,fontSize:21,marginBottom:4}}>Governance & Sicherheit</h2>
-        <p style=${{color:C.muted,fontSize:13,marginBottom:20}}>Governance ermöglicht die Nutzung von KI und kontrolliert Risiken. Sie ist ein Arbeitsleitfaden – kein Verbotssystem.</p>
-        <div style=${{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
-          ${[
-            {t:"Grundprinzipien",col:C.magenta,items:["KI ist ein Assistenzsystem – keine Entscheidungsinstanz","Verantwortung bleibt beim Menschen","Ergebnisse müssen geprüft werden","Sensible Daten sind zu schützen"]},
-            {t:"Datenklassifizierung",col:C.amber,items:["🟢 Unkritisch: öffentliche Infos, allgemeine Texte","🟡 Eingeschränkt: interne Inhalte nur in freigegebenen Tools","🔴 Kritisch: personenbezogene/vertrauliche Daten → nicht in externe Tools"]},
-            {t:"Tool-Governance",col:C.teal,items:["Freigegeben: von der Organisation geprüfte/interne Tools","Eingeschränkt: externe Tools nur ohne sensible Daten","Nicht freigegeben: Tools ohne Freigabe oder Prüfung"]},
-            {t:"Qualitätsprüfung",col:C.green,items:["Stimmen Inhalte fachlich?","Sind Zahlen korrekt?","Sind Annahmen gekennzeichnet?","Ist die Quelle nachvollziehbar?"]},
-            {t:"Typische Risiken",col:C.red,items:["falsche Zusammenfassungen","falsche Zahleninterpretation","scheinbar logische, aber falsche Argumente"]},
-            {t:"Organisation",col:C.violet,items:["Wer gibt Tools frei?","Wer pflegt Inhalte (z. B. ChatBot-Factory)?","Wer verantwortet Use Cases?","Wer schult Mitarbeitende?"]},
-          ].map(card=>html`<div key=${card.t} style=${{background:C.surface,border:`1px solid ${C.border}`,borderTop:`3px solid ${card.col}`,borderRadius:11,padding:"16px 18px"}}>
-            <h3 style=${{margin:"0 0 10px",fontWeight:800,fontSize:13.5,color:card.col}}>${card.t}</h3>
-            ${card.items.map((x,i)=>html`<div key=${i} style=${{display:"flex",gap:7,marginBottom:5}}><span style=${{color:card.col,flexShrink:0}}>•</span><span style=${{fontSize:12,lineHeight:1.55,color:C.text}}>${x}</span></div>`)}
-          </div>`)}
-        </div>
-        <div style=${{borderLeft:`4px solid ${C.magenta}`,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 18px",marginTop:14}}>
-          <span style=${{fontSize:13,color:C.text,lineHeight:1.7}}><strong>Use-Case-bezogene Governance:</strong> Jeder Use Case trägt eine eigene Ampel sowie Hinweise, „Wann nicht nutzen" und einen Qualitätscheck – sichtbar im Tab „Governance" der jeweiligen Karte.</span>
-        </div>
-      </div>`}
-
-    </div>
-  </div>`;
+  return { code:L.join("\n"), legend };
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(html`<${App}/>`);
+/* ---- Excel/CSV einlesen (SheetJS) mit Spaltenerkennung ---- */
+const HEAD_KEYS = {
+  name:["aktivität","aktivitaet","aktivitäten","aktivitaeten","schritt","prozessschritt","arbeitsschritt","aufgabe","tätigkeit","taetigkeit","activity","task","step","name","bezeichnung"],
+  rolle:["rolle","verantwortlich","verantwortung","zuständig","zustaendig","bearbeiter","owner","role"],
+  beschreibung:["beschreibung","detail","details","description","erläuterung","erlaeuterung","kommentar","anmerkung"],
+  system:["system","systeme","tool","tools","anwendung","software","it-system"],
+  dauer:["dauer","zeit","duration","aufwand"]
+};
+function findCol(headerRow, keys){
+  for(let i=0;i<headerRow.length;i++){
+    const h = String(headerRow[i]||"").trim().toLowerCase();
+    if(!h) continue;
+    if(keys.some(k => h===k || h.includes(k))) return i;
+  }
+  return -1;
+}
+function parseSpreadsheet(file){
+  return new Promise((resolve, reject)=>{
+    if(!window.XLSX){ reject(new Error("Tabellen-Bibliothek (SheetJS) ist nicht geladen.")); return; }
+    const r = new FileReader();
+    r.onerror = ()=> reject(new Error("Datei konnte nicht gelesen werden."));
+    r.onload = ()=>{
+      try{
+        const wb = XLSX.read(new Uint8Array(r.result), { type:"array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        if(!ws){ reject(new Error("Die Datei enthält kein lesbares Tabellenblatt.")); return; }
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:"", blankrows:false });
+        if(!rows.length){ reject(new Error("Die Datei enthält keine Daten.")); return; }
+
+        const allKeys = [].concat(HEAD_KEYS.name, HEAD_KEYS.rolle, HEAD_KEYS.beschreibung, HEAD_KEYS.system, HEAD_KEYS.dauer);
+        const firstRow = rows[0].map(c => String(c).trim().toLowerCase());
+        const looksHeader = firstRow.some(h => h && allKeys.some(k => h===k || h.includes(k)));
+
+        let cols, dataRows;
+        if(looksHeader){
+          cols = {
+            name: findCol(rows[0], HEAD_KEYS.name),
+            rolle: findCol(rows[0], HEAD_KEYS.rolle),
+            beschreibung: findCol(rows[0], HEAD_KEYS.beschreibung),
+            system: findCol(rows[0], HEAD_KEYS.system),
+            dauer: findCol(rows[0], HEAD_KEYS.dauer)
+          };
+          if(cols.name === -1) cols.name = 0;
+          dataRows = rows.slice(1);
+        }else{
+          cols = { name:0, rolle:-1, beschreibung:-1, system:-1, dauer:-1 };
+          dataRows = rows;
+        }
+
+        const activities = dataRows.map(row=>{
+          const get = i => (i>=0 && row[i]!=null) ? String(row[i]).trim() : "";
+          const sys = get(cols.system);
+          return {
+            name: get(cols.name),
+            rolle: get(cols.rolle),
+            beschreibung: get(cols.beschreibung),
+            systeme: sys ? sys.split(/[;,/]/).map(s=>s.trim()).filter(Boolean) : [],
+            dauer: get(cols.dauer)
+          };
+        }).filter(a => a.name);
+
+        if(!activities.length){ reject(new Error("Keine Aktivitäten gefunden – ist eine Spalte mit Schritten/Aufgaben vorhanden?")); return; }
+
+        const detected = [["Rolle",cols.rolle],["Beschreibung",cols.beschreibung],["System",cols.system],["Dauer",cols.dauer]]
+          .filter(([,v]) => v>=0).map(([k]) => k);
+        resolve({ activities, detected, headerUsed: looksHeader });
+      }catch(e){ reject(new Error("Datei konnte nicht verarbeitet werden: " + (e.message||e))); }
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+/* ========================================================================
+   APP
+   ======================================================================== */
+function App(){
+  const [phase, setPhase] = useState("start");        // start | interview
+  const [pstate, setPstate] = useState(null);          // Prozessstand
+  const [history, setHistory] = useState([]);          // {moderation, frage, antwort}
+  const [current, setCurrent] = useState(null);        // {moderation, naechste_frage, fortschritt, fertig}
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [modal, setModal] = useState(null);            // {type, ...}
+  const [saved, setSaved] = useState(null);
+  const askRef = useRef(null);
+
+  /* gespeicherten Stand erkennen */
+  useEffect(()=>{
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) setSaved(JSON.parse(raw));
+    }catch(e){}
+  },[]);
+
+  /* Autospeichern */
+  useEffect(()=>{
+    if(phase==="interview" && pstate){
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ pstate, history, current, ts: Date.now() }));
+      }catch(e){}
+    }
+  },[phase, pstate, history, current]);
+
+  const turn = useCallback(async (state, userContent)=>{
+    setLoading(true); setError("");
+    try{
+      const raw = await callClaude(SYS_INTERVIEW, userContent, 3000);
+      const obj = parseLoose(raw);
+      const newState = obj.stand || state;
+      newState.meta = newState.meta || state.meta;
+      newState.meta.zuletzt_geaendert = new Date().toISOString();
+      setPstate(newState);
+      setCurrent({
+        moderation: obj.moderation || "",
+        naechste_frage: obj.naechste_frage || "",
+        fortschritt: obj.fortschritt || { prozent:0, erfasste_bereiche:[], offene_bereiche:[] },
+        fertig: !!obj.fertig
+      });
+      setAnswer("");
+      setTimeout(()=>askRef.current && askRef.current.focus(), 60);
+    }catch(e){
+      setError(e.message || String(e));
+    }finally{
+      setLoading(false);
+    }
+  },[]);
+
+  /* ---- Startaktionen ---- */
+  function startGruenWiese(name){
+    const s = emptyState(name, "gruene_wiese");
+    setPstate(s); setHistory([]); setCurrent(null); setPhase("interview");
+    turn(s, "Modus: gruene_wiese. Neuer Soll-/Zielprozess mit Namen \""+name+"\". Aktueller Stand (JSON):\n"
+            + JSON.stringify(s) + "\n\nBeginne die Aufnahme: kurze Moderation und die erste wichtigste Einzelfrage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+  function startAufgabenliste(name, activities){
+    const s = emptyState(name, "ist");
+    s.aktivitaeten = activities.map((a,i)=>({
+      id:"A"+(i+1), name:a.name||"", beschreibung:a.beschreibung||"", rolle:a.rolle||"",
+      typ:"aktivitaet", systeme:a.systeme||[], dauer:a.dauer||"", vorgaenger:[]
+    }));
+    if(s.aktivitaeten.some(a=>a.rolle)) s.rollen = [...new Set(s.aktivitaeten.map(a=>a.rolle).filter(Boolean))].map(rr=>({rolle:rr, verantwortung:""}));
+    setPstate(s); setHistory([]); setCurrent(null); setPhase("interview");
+    turn(s, "Modus: ist. Der Nutzer hat eine bestehende Aufgaben-/Aktivitätenliste bereitgestellt (bereits im Stand unter 'aktivitaeten', ggf. mit Rolle/System/Beschreibung). "
+            + "Aktueller Stand (JSON):\n" + JSON.stringify(s)
+            + "\n\nSichte die Liste, kläre Reihenfolge und Lücken, und stelle die erste wichtigste Einzelfrage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+  function startImport(state){
+    setPstate(state); setHistory((state.protokoll||[]).map(p=>({moderation:"",frage:p.frage,antwort:p.antwort})));
+    setCurrent(null); setPhase("interview");
+    turn(state, "Setze die Aufnahme anhand des importierten Stands fort. Aktueller Stand (JSON):\n"
+            + JSON.stringify(state) + "\n\nErmittle die nächste wichtigste Lücke und stelle genau eine Frage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+  function resume(){
+    if(!saved) return;
+    setPstate(saved.pstate); setHistory(saved.history||[]); setCurrent(saved.current||null); setPhase("interview");
+    setTimeout(()=>askRef.current && askRef.current.focus(), 60);
+  }
+
+  /* ---- Antwort senden ---- */
+  function submitAnswer(){
+    if(!answer.trim() || loading || !current) return;
+    const entry = { moderation: current.moderation, frage: current.naechste_frage, antwort: answer.trim() };
+    const newHist = [...history, entry];
+    setHistory(newHist);
+    turn(pstate,
+      "Modus: " + (pstate.meta.modus) + ". Aktueller Prozessstand (JSON):\n" + JSON.stringify(pstate)
+      + "\n\nDer Nutzer hat auf die Frage \"" + current.naechste_frage + "\" geantwortet:\n\"" + answer.trim() + "\""
+      + "\n\nAktualisiere den vollständigen Stand (inkl. Protokolleintrag, Automatisierungspotenziale, offene Fragen) "
+      + "und stelle die nächste wichtigste Einzelfrage. Antworte ausschließlich mit dem JSON-Objekt.");
+  }
+
+  /* ---- Befehle / Buttons ---- */
+  function exportJSON(){
+    if(!pstate) return;
+    download((pstate.meta.prozessname||"prozess").replace(/[^\w\-]+/g,"_") + "_stand.json",
+             JSON.stringify(pstate, null, 2), "application/json");
+  }
+  function showDiagram(){
+    try{
+      const { code, legend } = buildMermaid(pstate);
+      setModal({ type:"diagram", loading:false, code, legend });
+    }catch(e){ setModal({ type:"diagram", loading:false, error: e.message||String(e) }); }
+  }
+  async function fullExport(){
+    setModal({ type:"export", loading:true });
+    try{
+      const { code } = buildMermaid(pstate);
+      const md = await callClaude(SYS_EXPORT,
+        "Prozessstand (JSON):\n" + JSON.stringify(pstate)
+        + "\n\nBereitgestelltes Mermaid-Diagramm (für Abschnitt 'Prozessdiagramm' unverändert übernehmen):\n" + code
+        + "\n\nErstelle die vollständige Markdown-Dokumentation.", 6000);
+      setModal({ type:"export", loading:false, md });
+    }catch(e){ setModal({ type:"export", loading:false, error: e.message||String(e) }); }
+  }
+  function openImport(){ setModal({ type:"import" }); }
+  function restart(){
+    if(!confirm("Aktuellen Prozess verwerfen und neu beginnen? Der gespeicherte Stand wird gelöscht.")) return;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    setPhase("start"); setPstate(null); setHistory([]); setCurrent(null); setSaved(null);
+  }
+
+  return (
+    <div className="wrap">
+      <header className="app-head">
+        <div className="brand">
+          <span className="dot"></span>
+          <div>
+            <h1>Prozessaufnahme-Assistent</h1>
+            <div className="sub">Geführtes Interview zur Aufnahme und Modellierung von Geschäftsprozessen</div>
+          </div>
+        </div>
+        <div className="conn">
+          <span className={"led " + (WORKER_SET ? "ok":"bad")}></span>
+          {WORKER_SET ? "KI-Verbindung konfiguriert" : "WORKER_URL fehlt"}
+        </div>
+      </header>
+
+      {!WORKER_SET &&
+        <div className="banner">
+          Es ist noch keine <b>WORKER_URL</b> eingetragen. Trage im Quelltext die URL deines Cloudflare Workers ein,
+          damit das Interview die Claude-API erreichen kann. Bis dahin lassen sich nur die Startmodi und der JSON-Export ohne KI nutzen.
+        </div>}
+
+      {phase === "start"
+        ? <StartScreen onGruen={startGruenWiese} onListe={startAufgabenliste} onImport={()=>openImport()}
+                       saved={saved} onResume={resume} />
+        : <Interview pstate={pstate} history={history} current={current} loading={loading} error={error}
+                     answer={answer} setAnswer={setAnswer} onSubmit={submitAnswer} askRef={askRef}
+                     onDiagram={showDiagram} onExport={fullExport} onJSON={exportJSON}
+                     onImport={openImport} onRestart={restart} />}
+
+      {modal && <Modal modal={modal} close={()=>setModal(null)} onImported={startImport} pstate={pstate} />}
+    </div>
+  );
+}
+
+/* ---- Startbildschirm ---- */
+function StartScreen({ onGruen, onListe, onImport, saved, onResume }){
+  const [view, setView] = useState(null); // null | 'gruen' | 'liste'
+  const [name, setName] = useState("");
+  const [liste, setListe] = useState("");
+  const [fileActs, setFileActs] = useState(null);   // geparste Aktivitäten aus Datei
+  const [fileInfo, setFileInfo] = useState(null);    // {name, detected, headerUsed}
+  const [fileErr, setFileErr] = useState("");
+  const [parsing, setParsing] = useState(false);
+
+  function handleFile(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    setFileErr(""); setParsing(true); setFileActs(null); setFileInfo(null);
+    parseSpreadsheet(file).then(res=>{
+      setFileActs(res.activities);
+      setFileInfo({ name:file.name, detected:res.detected, headerUsed:res.headerUsed, count:res.activities.length });
+      if(!name.trim()) setName(file.name.replace(/\.[^.]+$/,""));
+    }).catch(err=>{
+      setFileErr(err.message||String(err));
+    }).finally(()=> setParsing(false));
+  }
+
+  function startListe(){
+    if(fileActs && fileActs.length){
+      onListe(name.trim(), fileActs);
+    }else{
+      const acts = liste.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>({ name:l }));
+      onListe(name.trim(), acts);
+    }
+  }
+  const canStart = name.trim() && ((fileActs && fileActs.length) || liste.trim());
+
+  return (
+    <div className="card pad">
+      <h2 style={{marginTop:0}}>Womit möchten Sie beginnen?</h2>
+      <p className="lead">Der Assistent führt Sie mit jeweils einer Frage durch die Aufnahme. Wählen Sie den passenden
+      Einstieg – einen frischen Zielprozess, eine vorhandene Aufgabenliste oder einen zuvor exportierten Stand.</p>
+
+      {saved &&
+        <div className="resume">
+          <span className="txt">Gespeicherter Stand gefunden: <b>{saved.pstate?.meta?.prozessname}</b></span>
+          <button className="btn sm primary" onClick={onResume}>Fortsetzen</button>
+        </div>}
+
+      {!view &&
+        <div className="modes">
+          <button className="mode" onClick={()=>setView("gruen")}>
+            <span className="k">Grüne Wiese</span>
+            <span className="t">Soll-/Zielprozess</span>
+            <span className="d">Einen Prozess von Grund auf entwerfen – wie er idealerweise ablaufen soll.</span>
+          </button>
+          <button className="mode" onClick={()=>setView("liste")}>
+            <span className="k">Bestehende Aktivitäten</span>
+            <span className="t">Ist-Prozess</span>
+            <span className="d">Mit vorhandenen Aktivitäten starten – als Excel-/CSV-Datei oder Liste – und den tatsächlichen Ablauf erfassen.</span>
+          </button>
+          <button className="mode" onClick={onImport}>
+            <span className="k">Fortsetzen</span>
+            <span className="t">Stand importieren</span>
+            <span className="d">Einen zuvor gespeicherten JSON-Stand oder eine strukturierte Beschreibung laden.</span>
+          </button>
+        </div>}
+
+      {view === "gruen" &&
+        <div style={{marginTop:24,maxWidth:520}}>
+          <label className="fld">Wie heißt der Prozess?</label>
+          <input className="txt" autoFocus value={name} onChange={e=>setName(e.target.value)}
+                 placeholder="z. B. Rechnungsfreigabe, Onboarding neuer Mitarbeitender …"
+                 onKeyDown={e=>{ if(e.key==="Enter" && name.trim()) onGruen(name.trim()); }} />
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <button className="btn primary" disabled={!name.trim()} onClick={()=>onGruen(name.trim())}>Aufnahme starten</button>
+            <button className="btn ghost" onClick={()=>setView(null)}>Zurück</button>
+          </div>
+        </div>}
+
+      {view === "liste" &&
+        <div style={{marginTop:24,maxWidth:680}}>
+          <label className="fld">Prozessname</label>
+          <input className="txt" value={name} onChange={e=>setName(e.target.value)}
+                 placeholder="z. B. Bestellabwicklung" style={{marginBottom:18}} />
+
+          <label className="fld">Aus Datei übernehmen (Excel .xlsx/.xls oder CSV)</label>
+          <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                 onChange={handleFile} />
+          {parsing && <div className="hint" style={{marginTop:8}}><span className="spinner"></span> Datei wird gelesen …</div>}
+          {fileErr && <div className="err">{fileErr}</div>}
+          {fileActs &&
+            <div className="resume" style={{display:"block",marginTop:12}}>
+              <div className="txt"><b>{fileInfo.count}</b> Aktivitäten aus „{fileInfo.name}" erkannt
+                {fileInfo.headerUsed === false && " (ohne Kopfzeile – erste Spalte als Schritt verwendet)"}.
+                {fileInfo.detected.length>0 && <> Zusätzliche Spalten: {fileInfo.detected.join(", ")}.</>}
+              </div>
+              <ul className="openq" style={{marginTop:8}}>
+                {fileActs.slice(0,5).map((a,i)=>(
+                  <li key={i}>{a.name}{a.rolle?" — "+a.rolle:""}{a.systeme&&a.systeme.length?" ["+a.systeme.join(", ")+"]":""}</li>
+                ))}
+                {fileActs.length>5 && <li>… und {fileActs.length-5} weitere</li>}
+              </ul>
+              <button className="btn ghost sm" style={{marginTop:6}} onClick={()=>{setFileActs(null);setFileInfo(null);}}>Datei verwerfen</button>
+            </div>}
+
+          <div style={{margin:"18px 0 6px",fontSize:13,color:"var(--ink-soft)"}}>oder Liste manuell einfügen – eine Zeile pro Schritt:</div>
+          <textarea className="imp-area" value={liste} onChange={e=>setListe(e.target.value)}
+                    placeholder={"Bedarf erfassen\nBestellung anlegen\nFreigabe einholen\nWareneingang prüfen\n…"} />
+
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <button className="btn primary" disabled={!canStart} onClick={startListe}>Aufnahme starten</button>
+            <button className="btn ghost" onClick={()=>setView(null)}>Zurück</button>
+          </div>
+          {fileActs && liste.trim() &&
+            <div className="hint" style={{marginTop:8}}>Hinweis: Es wird die <b>Datei</b> verwendet. Verwerfen Sie sie, um die manuelle Liste zu nutzen.</div>}
+        </div>}
+    </div>
+  );
+}
+
+/* ---- Interview ---- */
+function Interview(props){
+  const { pstate, history, current, loading, error, answer, setAnswer, onSubmit, askRef,
+          onDiagram, onExport, onJSON, onImport, onRestart } = props;
+  const istIst = pstate?.meta?.modus === "ist";
+  const f = current?.fortschritt || { prozent:0, erfasste_bereiche:[], offene_bereiche:[] };
+
+  return (
+    <div>
+      <div className="card pad" style={{marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <h2 className="pname">{pstate?.meta?.prozessname}</h2>
+          <span className={"pmode " + (istIst?"ist":"")}>{istIst ? "Ist-Prozess" : "Grüne Wiese"}</span>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <button className="btn" onClick={onDiagram} disabled={loading}>Prozessbild anzeigen</button>
+        <button className="btn" onClick={onExport} disabled={loading}>Gesamtexport erstellen</button>
+        <button className="btn" onClick={onJSON} disabled={loading}>Zwischenstand exportieren (JSON)</button>
+        <button className="btn" onClick={onImport} disabled={loading}>Stand importieren</button>
+        <button className="btn ghost danger" onClick={onRestart} disabled={loading}>Neu starten</button>
+      </div>
+
+      <div className="grid">
+        <div className="card pad">
+          <div className="log">
+            {history.map((h,i)=>(
+              <div className="turn" key={i}>
+                {h.frage && <div className="q"><span className="lbl">Frage {i+1}</span>{h.frage}</div>}
+                <div className="a"><span className="lbl">Antwort</span><div className="val">{h.antwort}</div></div>
+              </div>
+            ))}
+          </div>
+
+          {loading &&
+            <div className="ask"><span className="spinner"></span> <span className="hint" style={{marginLeft:8}}>Der Assistent verarbeitet die Antwort …</span></div>}
+
+          {!loading && current &&
+            <div className="ask">
+              {current.moderation && <div className="modtxt">{current.moderation}</div>}
+              {current.fertig && !current.naechste_frage
+                ? <div className="question">Die Aufnahme ist inhaltlich vollständig. Sie können jetzt den Gesamtexport erstellen oder weitere Details ergänzen.</div>
+                : <div className="question">{current.naechste_frage}</div>}
+              {!(current.fertig && !current.naechste_frage) &&
+                <div>
+                  <textarea ref={askRef} className="answer" value={answer}
+                            onChange={e=>setAnswer(e.target.value)}
+                            placeholder="Ihre Antwort …"
+                            onKeyDown={e=>{ if(e.key==="Enter" && (e.metaKey||e.ctrlKey)){ e.preventDefault(); onSubmit(); } }} />
+                  <div className="ask-row">
+                    <span className="hint">Strg/⌘ + Enter zum Senden</span>
+                    <button className="btn primary" onClick={onSubmit} disabled={!answer.trim()}>Antwort senden</button>
+                  </div>
+                </div>}
+            </div>}
+
+          {error && <div className="err"><b>Fehler:</b> {error}</div>}
+        </div>
+
+        <aside className="side">
+          <div className="card pad" style={{marginBottom:16}}>
+            <h3>Fortschritt</h3>
+            <div className="prog-bar"><i style={{width:(f.prozent||0)+"%"}}></i></div>
+            <div className="prog-pct">{f.prozent||0} % erfasst</div>
+            {(f.offene_bereiche||[]).length>0 &&
+              <div className="chips">
+                {f.offene_bereiche.map((b,i)=><span className="chip" key={i}>{b}</span>)}
+              </div>}
+            {(f.erfasste_bereiche||[]).length>0 &&
+              <div className="chips">
+                {f.erfasste_bereiche.map((b,i)=><span className="chip done" key={i}>{b}</span>)}
+              </div>}
+          </div>
+          {(pstate?.offene_fragen||[]).length>0 &&
+            <div className="card pad">
+              <h3>Offene Fragen</h3>
+              <ul className="openq">
+                {pstate.offene_fragen.slice(0,8).map((q,i)=><li key={i}>{typeof q==="string"?q:(q.frage||JSON.stringify(q))}</li>)}
+              </ul>
+            </div>}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Modal (Diagramm / Export / Import) ---- */
+function Modal({ modal, close, onImported, pstate }){
+  const [importText, setImportText] = useState("");
+  const [importErr, setImportErr] = useState("");
+  const mref = useRef(null);
+
+  /* Mermaid rendern */
+  useEffect(()=>{
+    if(modal.type==="diagram" && modal.code && window.__mermaidReady && mref.current){
+      const id = "mmd_" + Date.now();
+      window.__mermaid.render(id, modal.code)
+        .then(({svg})=>{ if(mref.current) mref.current.innerHTML = svg; })
+        .catch(()=>{ if(mref.current) mref.current.innerHTML = "<pre class='out'>"+ (modal.code||"").replace(/</g,"&lt;") +"</pre>"; });
+    }
+  },[modal]);
+
+  function doImport(){
+    setImportErr("");
+    try{
+      const obj = JSON.parse(importText);
+      if(!obj.meta) throw new Error("Kein gültiger Prozessstand (Feld 'meta' fehlt).");
+      close(); onImported(obj);
+    }catch(e){ setImportErr("Konnte nicht eingelesen werden: " + (e.message||e)); }
+  }
+  function onFile(e){
+    const file = e.target.files[0]; if(!file) return;
+    const r = new FileReader();
+    r.onload = ()=> setImportText(String(r.result));
+    r.readAsText(file);
+  }
+
+  const title = modal.type==="diagram" ? "Prozessbild"
+              : modal.type==="export"  ? "Gesamtexport"
+              : "Stand importieren";
+
+  return (
+    <div className="overlay" onClick={close}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-head">
+          <h2>{title}</h2>
+          <button className="btn ghost sm" onClick={close}>Schließen</button>
+        </div>
+        <div className="modal-body">
+
+          {modal.type==="diagram" && <>
+            {modal.loading && <p><span className="spinner"></span> Diagramm wird erstellt …</p>}
+            {modal.error && <div className="err">{modal.error}</div>}
+            {modal.code && <>
+              <div className="mermaid-box" ref={mref}></div>
+              {modal.legend && modal.legend.length>0 &&
+                <div style={{display:"flex",flexWrap:"wrap",gap:"8px 18px",marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em"}}>Rollen</span>
+                  {modal.legend.map((l,i)=>(
+                    <span key={i} style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:13.5}}>
+                      <span style={{width:13,height:13,borderRadius:3,background:l.color,display:"inline-block"}}></span>{l.rolle}
+                    </span>
+                  ))}
+                </div>}
+              <div className="modal-actions">
+                <button className="btn sm" onClick={()=>{navigator.clipboard.writeText(modal.code);}}>Mermaid-Code kopieren</button>
+                <button className="btn sm" onClick={()=>download((pstate?.meta?.prozessname||"prozess")+".mmd", modal.code, "text/plain")}>.mmd herunterladen</button>
+                <button className="btn sm" onClick={()=>{ const svg=mref.current&&mref.current.innerHTML; if(svg) download((pstate?.meta?.prozessname||"prozess")+".svg", svg, "image/svg+xml"); }}>SVG herunterladen</button>
+              </div>
+            </>}
+          </>}
+
+          {modal.type==="export" && <>
+            {modal.loading && <p><span className="spinner"></span> Dokumentation wird erstellt …</p>}
+            {modal.error && <div className="err">{modal.error}</div>}
+            {modal.md && <>
+              <pre className="out">{modal.md}</pre>
+              <div className="modal-actions">
+                <button className="btn sm" onClick={()=>{navigator.clipboard.writeText(modal.md);}}>Markdown kopieren</button>
+                <button className="btn sm primary" onClick={()=>download((pstate?.meta?.prozessname||"prozess").replace(/[^\w\-]+/g,"_")+"_dokumentation.md", modal.md, "text/markdown")}>.md herunterladen</button>
+              </div>
+            </>}
+          </>}
+
+          {modal.type==="import" && <>
+            <label className="fld">JSON-Stand einfügen oder Datei wählen</label>
+            <input type="file" accept=".json,application/json" onChange={onFile} style={{marginBottom:12}} />
+            <textarea className="imp-area" value={importText} onChange={e=>setImportText(e.target.value)}
+                      placeholder='{ "meta": { "prozessname": "…", "modus": "ist", … }, … }' />
+            {importErr && <div className="err">{importErr}</div>}
+            <div className="modal-actions">
+              <button className="btn primary" disabled={!importText.trim()} onClick={doImport}>Importieren & fortsetzen</button>
+            </div>
+          </>}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
